@@ -6,7 +6,7 @@
 /*   By: emendes- <emendes-@student.42sp.org.br>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/05/12 18:50:43 by emendes-          #+#    #+#             */
-/*   Updated: 2021/05/13 19:57:48 by emendes-         ###   ########.fr       */
+/*   Updated: 2021/05/13 20:24:32 by emendes-         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,23 +22,24 @@
 
 # define FTT(x) __________ftt_##x
 
-typedef void (*FTT(test_t))();
+typedef struct	FTT(test_s)
+{
+	struct FTT(test_s) *next;
+	const char *name;
+	void (*run)();
+}				FTT(test_t);
 
 extern int FTT(test_failed);
-extern FTT(test_t) FTT(tests)[];
 extern const char *FTT(current_test);
+
+extern FTT(test_t) *FTT(tests);
+
+void	FTT(register_test)(const char *name, void (*test)());
 
 # define FT_TEST(test_name) \
 	void FTT(test_case__##test_name)();\
-	void FTT(test_case__##test_name##_runner)();\
-	void __attribute__((constructor)) FTT(register_##test_name)() {\
-		int i;\
-		for (i = 0; FTT(tests)[i] != 0; ++i);\
-		FTT(tests)[i] = FTT(test_case__##test_name##_runner);\
-	}\
-	void FTT(test_case__##test_name##_runner)() {\
-		FTT(current_test) = #test_name;\
-		FTT(test_case__##test_name)();\
+	void __attribute__((constructor)) FTT(construct_##test_name)() {\
+		FTT(test_register)(#test_name, FTT(test_case__##test_name));\
 	}\
 	void FTT(test_case__##test_name)()
 
@@ -46,8 +47,8 @@ extern const char *FTT(current_test);
 # define FT_TRUE(condition)\
 	do {\
 		if (!(condition)) {\
-			printf("Error on test %s: (%s) should be TRUE\n", FTT(current_test), #condition);\
-			ftt__failed = 1;\
+			printf("Error on test %s: (%s) should be TRUE\n", FTT(tests)->name, #condition);\
+			FTT(test_failed) = 1;\
 			return;\
 		}\
 	} while (0);
@@ -56,8 +57,8 @@ extern const char *FTT(current_test);
 # define FT_FALSE(condition)\
 	do {\
 		if ((condition)) {\
-			printf("Error on test %s: (%s) should be FALSE\n", FTT(current_test), #condition);\
-			FTT(failed) = 1;\
+			printf("Error on test %s: (%s) should be FALSE\n", FTT(tests)->name, #condition);\
+			FTT(test_failed) = 1;\
 			return;\
 		}\
 	} while (0);
@@ -79,7 +80,7 @@ extern const char *FTT(current_test);
 # define FT_EQ(type_name, a, b)\
 	do {\
 		if (FTT(comp_##type_name)((a), (b)) != 0) {\
-			printf("Error on test %s: expected %s == %s, but ", FTT(current_test), #a, #b);\
+			printf("Error on test %s: expected %s == %s, but ", FTT(tests)->name, #a, #b);\
 			FTT(print_##type_name)((a));\
 			printf(" != ");\
 			FTT(print_##type_name)((b));\
@@ -93,13 +94,27 @@ extern const char *FTT(current_test);
 
 # ifdef FT_TEST_MAIN
 
-int FTT(failed) = 0;
-const char *FTT(current_test) = "None";
-FTT(test_t) FTT(tests)[FT_TEST_MAX_TESTS] = {0};\
+int FTT(test_failed) = 0;
+FTT(test_t) *FTT(tests) = 0;
+FTT(test_t) **FTT(register_handle) = &FTT(tests);
+
+FTT(test_t)	*FTT(test_new)(const char *name, void (*test)()) {
+	FTT(test_t) *ret = malloc(sizeof(FTT(test_t)));
+	if (ret == NULL)
+		exit(-1);
+	ret->next = NULL;
+	ret->name = name;
+	ret->run = test;
+	return (ret);
+}
+
+void	FTT(test_register)(const char *name, void (*test)()) {
+	*FTT(register_handle) = FTT(test_new)(name, test);
+}
 
 int main() {
-	for (int i = 0; FTT(tests)[i] != 0; ++i) {\
-		FTT(tests)[i]();
+	for (; FTT(tests) != 0; FTT(tests) = FTT(tests)->next) {
+		FTT(tests)->run();
 	}
 
 	if (!FTT(test_failed))
