@@ -6,7 +6,7 @@
 /*   By: emendes- <emendes-@student.42sp.org.br>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/05/12 18:50:43 by emendes-          #+#    #+#             */
-/*   Updated: 2021/05/13 20:24:32 by emendes-         ###   ########.fr       */
+/*   Updated: 2021/05/13 20:31:06 by emendes-         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,10 +15,6 @@
 
 # include <stdio.h>
 # include <stdlib.h>
-
-# ifndef FT_TEST_MAX_TESTS
-#  define FT_TEST_MAX_TESTS 1024
-# endif
 
 # define FTT(x) __________ftt_##x
 
@@ -89,8 +85,63 @@ void	FTT(register_test)(const char *name, void (*test)());
 			return;\
 		}\
 	} while (0);
-
 # define FT_EQUALS(...) FT_EQ(__VA_ARGS__)
+
+# define FT_LT(type_name, a, b)\
+	do {\
+		if (FTT(comp_##type_name)((a), (b)) < 0) {\
+			printf("Error on test %s: expected %s < %s, but ", FTT(tests)->name, #a, #b);\
+			FTT(print_##type_name)((a));\
+			printf(" >= ");\
+			FTT(print_##type_name)((b));\
+			printf("\n");\
+			FTT(test_failed) = 1;\
+			return;\
+		}\
+	} while (0);
+# define FT_LESS_THAN(...) FT_LT(__VA_ARGS__)
+
+# define FT_LE(type_name, a, b)\
+	do {\
+		if (FTT(comp_##type_name)((a), (b)) <= 0) {\
+			printf("Error on test %s: expected %s <= %s, but ", FTT(tests)->name, #a, #b);\
+			FTT(print_##type_name)((a));\
+			printf(" > ");\
+			FTT(print_##type_name)((b));\
+			printf("\n");\
+			FTT(test_failed) = 1;\
+			return;\
+		}\
+	} while (0);
+# define FT_LESS_EQUAL(...) FT_LE(__VA_ARGS__)
+
+# define FT_GT(type_name, a, b)\
+	do {\
+		if (FTT(comp_##type_name)((a), (b)) > 0) {\
+			printf("Error on test %s: expected %s > %s, but ", FTT(tests)->name, #a, #b);\
+			FTT(print_##type_name)((a));\
+			printf(" <= ");\
+			FTT(print_##type_name)((b));\
+			printf("\n");\
+			FTT(test_failed) = 1;\
+			return;\
+		}\
+	} while (0);
+# define FT_GREATER_THAN(...) FT_GT(__VA_ARGS__)
+
+# define FT_GE(type_name, a, b)\
+	do {\
+		if (FTT(comp_##type_name)((a), (b)) >= 0) {\
+			printf("Error on test %s: expected %s >= %s, but ", FTT(tests)->name, #a, #b);\
+			FTT(print_##type_name)((a));\
+			printf(" < ");\
+			FTT(print_##type_name)((b));\
+			printf("\n");\
+			FTT(test_failed) = 1;\
+			return;\
+		}\
+	} while (0);
+# define FT_GREATER_EQUAL(...) FT_GT(__VA_ARGS__)
 
 # ifdef FT_TEST_MAIN
 
