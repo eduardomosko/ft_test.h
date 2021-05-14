@@ -6,7 +6,7 @@
 /*   By: emendes- <emendes-@student.42sp.org.br>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/05/12 18:50:43 by emendes-          #+#    #+#             */
-/*   Updated: 2021/05/13 22:33:05 by emendes-         ###   ########.fr       */
+/*   Updated: 2021/05/13 23:04:00 by emendes-         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -36,7 +36,7 @@ extern const char *FTT(current_test);
 
 extern FTT(test_t) *FTT(tests);
 
-void	FTT(register_test)(const char *name, void (*test)());
+void	FTT(test_register)(const char *name, void (*test)());
 
 /*
  *
@@ -187,6 +187,14 @@ void	FTT(register_test)(const char *name, void (*test)());
 	int FTT(comp_##type_name)();\
 	void FTT(print_##type_name)()
 
+FT_TYPE(int);
+FT_TYPE(long);
+FT_TYPE(ptr);
+FT_TYPE(uint);
+FT_TYPE(ulong);
+FT_TYPE(str);
+FT_TYPE(buffer);
+
 # ifdef FT_TEST_MAIN
 
 int FTT(test_failed) = 0;
@@ -205,6 +213,7 @@ FTT(test_t)	*FTT(test_new)(const char *name, void (*test)()) {
 
 void	FTT(test_register)(const char *name, void (*test)()) {
 	*FTT(register_handle) = FTT(test_new)(name, test);
+	FTT(register_handle) = &(*FTT(register_handle))->next;
 }
 
 int main() {
