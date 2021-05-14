@@ -6,7 +6,7 @@
 /*   By: emendes- <emendes-@student.42sp.org.br>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/05/12 18:50:43 by emendes-          #+#    #+#             */
-/*   Updated: 2021/05/13 20:31:06 by emendes-         ###   ########.fr       */
+/*   Updated: 2021/05/13 22:33:05 by emendes-         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,8 +15,14 @@
 
 # include <stdio.h>
 # include <stdlib.h>
+# include <string.h>
+# include <ctype.h>
 
-# define FTT(x) __________ftt_##x
+# ifndef FT_TEST_DEBUG
+#  define FTT(x) __________ftt_##x
+# else
+#  define FTT(x) ftt_##x
+# endif
 
 typedef struct	FTT(test_s)
 {
@@ -31,6 +37,12 @@ extern const char *FTT(current_test);
 extern FTT(test_t) *FTT(tests);
 
 void	FTT(register_test)(const char *name, void (*test)());
+
+/*
+ *
+ *   TESTS
+ *
+ */
 
 # define FT_TEST(test_name) \
 	void FTT(test_case__##test_name)();\
@@ -59,27 +71,13 @@ void	FTT(register_test)(const char *name, void (*test)());
 		}\
 	} while (0);
 
-
-# define FT_OUTPUT(print, string_expect)
-
-
-# define FT_TEST_REGISTER_TYPE_LAMBDA(type_name, type, printfn, compfn)\
-	int FTT(comp_##type_name) compfn\
-	void FTT(print_##type_name) printfn
-
-# define FT_TEST_REGISTER_TYPE(type_name, type, printfn, compfn)\
-	FT_TEST_REGISTER_TYPE_LAMBDA(type_name, type,\
-			(type a)         { printfn(a);          },\
-			(type a, type b) { return compfn(a, b); })\
-
-
-# define FT_EQ(type_name, a, b)\
+# define FT_EQ(type_name, a, b, ...)\
 	do {\
-		if (FTT(comp_##type_name)((a), (b)) != 0) {\
+		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) != 0) {\
 			printf("Error on test %s: expected %s == %s, but ", FTT(tests)->name, #a, #b);\
-			FTT(print_##type_name)((a));\
+			FTT(print_##type_name)((a), ##__VA_ARGS__);\
 			printf(" != ");\
-			FTT(print_##type_name)((b));\
+			FTT(print_##type_name)((b), ##__VA_ARGS__);\
 			printf("\n");\
 			FTT(test_failed) = 1;\
 			return;\
@@ -87,13 +85,27 @@ void	FTT(register_test)(const char *name, void (*test)());
 	} while (0);
 # define FT_EQUALS(...) FT_EQ(__VA_ARGS__)
 
-# define FT_LT(type_name, a, b)\
+# define FT_NEQ(type_name, a, b, ...)\
 	do {\
-		if (FTT(comp_##type_name)((a), (b)) < 0) {\
+		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) == 0) {\
+			printf("Error on test %s: expected %s != %s, but ", FTT(tests)->name, #a, #b);\
+			FTT(print_##type_name)((a), ##__VA_ARGS__);\
+			printf(" == ");\
+			FTT(print_##type_name)((b), ##__VA_ARGS__);\
+			printf("\n");\
+			FTT(test_failed) = 1;\
+			return;\
+		}\
+	} while (0);
+# define FT_NOT_EQUALS(...) FT_NEQ(__VA_ARGS__)
+
+# define FT_LT(type_name, a, b, ...)\
+	do {\
+		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) < 0) {\
 			printf("Error on test %s: expected %s < %s, but ", FTT(tests)->name, #a, #b);\
-			FTT(print_##type_name)((a));\
+			FTT(print_##type_name)((a), ##__VA_ARGS__);\
 			printf(" >= ");\
-			FTT(print_##type_name)((b));\
+			FTT(print_##type_name)((b), ##__VA_ARGS__);\
 			printf("\n");\
 			FTT(test_failed) = 1;\
 			return;\
@@ -101,13 +113,13 @@ void	FTT(register_test)(const char *name, void (*test)());
 	} while (0);
 # define FT_LESS_THAN(...) FT_LT(__VA_ARGS__)
 
-# define FT_LE(type_name, a, b)\
+# define FT_LE(type_name, a, b, ...)\
 	do {\
-		if (FTT(comp_##type_name)((a), (b)) <= 0) {\
+		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) <= 0) {\
 			printf("Error on test %s: expected %s <= %s, but ", FTT(tests)->name, #a, #b);\
-			FTT(print_##type_name)((a));\
+			FTT(print_##type_name)((a), ##__VA_ARGS__);\
 			printf(" > ");\
-			FTT(print_##type_name)((b));\
+			FTT(print_##type_name)((b), ##__VA_ARGS__);\
 			printf("\n");\
 			FTT(test_failed) = 1;\
 			return;\
@@ -115,13 +127,13 @@ void	FTT(register_test)(const char *name, void (*test)());
 	} while (0);
 # define FT_LESS_EQUAL(...) FT_LE(__VA_ARGS__)
 
-# define FT_GT(type_name, a, b)\
+# define FT_GT(type_name, a, b, ...)\
 	do {\
-		if (FTT(comp_##type_name)((a), (b)) > 0) {\
+		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) > 0) {\
 			printf("Error on test %s: expected %s > %s, but ", FTT(tests)->name, #a, #b);\
-			FTT(print_##type_name)((a));\
+			FTT(print_##type_name)((a), ##__VA_ARGS__);\
 			printf(" <= ");\
-			FTT(print_##type_name)((b));\
+			FTT(print_##type_name)((b), ##__VA_ARGS__);\
 			printf("\n");\
 			FTT(test_failed) = 1;\
 			return;\
@@ -129,19 +141,51 @@ void	FTT(register_test)(const char *name, void (*test)());
 	} while (0);
 # define FT_GREATER_THAN(...) FT_GT(__VA_ARGS__)
 
-# define FT_GE(type_name, a, b)\
+# define FT_GE(type_name, a, b, ...)\
 	do {\
-		if (FTT(comp_##type_name)((a), (b)) >= 0) {\
+		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) >= 0) {\
 			printf("Error on test %s: expected %s >= %s, but ", FTT(tests)->name, #a, #b);\
-			FTT(print_##type_name)((a));\
+			FTT(print_##type_name)((a), ##__VA_ARGS__);\
 			printf(" < ");\
-			FTT(print_##type_name)((b));\
+			FTT(print_##type_name)((b), ##__VA_ARGS__);\
 			printf("\n");\
 			FTT(test_failed) = 1;\
 			return;\
 		}\
 	} while (0);
 # define FT_GREATER_EQUAL(...) FT_GT(__VA_ARGS__)
+
+/*
+ *
+ *   TYPES
+ *
+ */
+
+# define FT_TEST_REGISTER_TYPE_LAMBDA(type_name, type, printfn, compfn)\
+	void FTT(print_##type_name) printfn;\
+	int FTT(comp_##type_name) compfn
+
+# define FT_TEST_REGISTER_TYPE_LMBD(type_name, type, printfn, compfn)\
+	FT_TEST_REGISTER_TYPE_LAMBDA(type_name, type,\
+			(type type_name) printfn,\
+			(type type_name##1, type type_name##2 ) compfn)
+
+# define FT_TEST_REGISTER_TYPE_LMBD_(type_name, type, printfn, compfn)\
+	FT_TEST_REGISTER_TYPE_LAMBDA(type_name, type,\
+			(type type_name##_) printfn,\
+			(type type_name##1, type type_name##2 ) compfn)
+
+# define FT_TEST_REGISTER_TYPE(type_name, type, printfn, compfn)\
+	FT_TEST_REGISTER_TYPE_LAMBDA(type_name, type,\
+			(type a)         { printfn(a);          },\
+			(type a, type b) { return compfn(a, b); })
+
+#define FT_TEST_TYPE_ALIAS(type_name, type_target, type)\
+	FT_TEST_REGISTER_TYPE(type_name, type, print_##type_target, comp_##type_target);
+
+#define FT_TYPE(type_name)\
+	int FTT(comp_##type_name)();\
+	void FTT(print_##type_name)()
 
 # ifdef FT_TEST_MAIN
 
@@ -173,6 +217,28 @@ int main() {
 
 	return FTT(test_failed);
 }
+
+FT_TEST_REGISTER_TYPE_LMBD_(int , int  , { printf("%i" ,  int_); }, { return  int1 -  int2; });
+FT_TEST_REGISTER_TYPE_LMBD_(long, long , { printf("%li", long_); }, { return long1 - long2; });
+FT_TEST_REGISTER_TYPE_LMBD (ptr , void*, { printf("%p" ,  ptr ); }, { return  ptr1 -  ptr2; });
+
+FT_TEST_REGISTER_TYPE_LMBD (uint , unsigned  int, { printf( "%u", uint ); }, { return  uint1 -  uint2; });
+FT_TEST_REGISTER_TYPE_LMBD (ulong, unsigned long, { printf("%lu", ulong); }, { return ulong1 - ulong2; });
+
+FT_TEST_REGISTER_TYPE_LMBD (str, char*, { printf("\"%s\"", str); }, { return strcmp(str1, str2); });
+
+FT_TEST_REGISTER_TYPE_LAMBDA(buffer, void*,
+		(char *buffer, size_t size) {
+			printf("[");
+			for (size_t i = 0; i < size; ++i) {
+				if (isprint(*buffer))
+					printf("%c", *buffer);
+				else
+					printf("\e[1;29m\\%u\e[0m", *(unsigned char*)buffer);
+				++buffer;
+			}
+			printf("]");
+		}, (void *b1, void *b2, size_t size) { return memcmp(b1, b2, size); });
 
 # endif
 
