@@ -6,7 +6,7 @@
 /*   By: emendes- <emendes-@student.42sp.org.br>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/05/12 18:50:43 by emendes-          #+#    #+#             */
-/*   Updated: 2021/05/13 23:04:00 by emendes-         ###   ########.fr       */
+/*   Updated: 2021/05/15 13:22:53 by emendes-         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -18,6 +18,7 @@
 # include <string.h>
 # include <ctype.h>
 
+# define FT_TEST_DEBUG
 # ifndef FT_TEST_DEBUG
 #  define FTT(x) __________ftt_##x
 # else
@@ -26,15 +27,27 @@
 
 typedef struct	FTT(test_s)
 {
-	struct FTT(test_s) *next;
+		struct FTT(test_s) *next;
 	const char *name;
 	void (*run)();
 }				FTT(test_t);
+
+typedef struct	FTT(options_s)
+{
+	const char	*program_name;
+
+	int			verbose;
+	int			help_only;
+	int			exit_first;
+	int			run_all;
+
+}				FTT(options_t);
 
 extern int FTT(test_failed);
 extern const char *FTT(current_test);
 
 extern FTT(test_t) *FTT(tests);
+extern FTT(options_t) FTT(options);
 
 void	FTT(test_register)(const char *name, void (*test)());
 
@@ -200,6 +213,94 @@ FT_TYPE(buffer);
 int FTT(test_failed) = 0;
 FTT(test_t) *FTT(tests) = 0;
 FTT(test_t) **FTT(register_handle) = &FTT(tests);
+FTT(options_t) FTT(options) = {0};
+
+void FTT(argparser)(int argc, char **argv)
+{
+	FTT(options).program_name = *argv;
+
+	// Check every argument
+	for (int i = 1; i < argc; ++i)
+	{
+		char *opt = argv[i];
+
+		if (*opt == '-')
+		{
+			++opt;
+			if (*opt != '-')
+			{
+				for (; *opt; ++opt)
+				{
+					switch (*opt) {
+						case 'v':
+							FTT(options).verbose += 1;
+							break;
+						case 'x':
+							FTT(options).exit_first = 1;
+							FTT(options).run_all = 0;
+							break;
+						case 'a':
+							FTT(options).exit_first = 0;
+							FTT(options).run_all = 1;
+							break;
+						case 'h':
+							FTT(options).help_only = 1;
+							break;
+					}
+				}
+			}
+			else
+			{
+				++opt;
+				if (strcmp(opt, "verbose") == 0)
+				{
+					FTT(options).verbose += 1;
+				}
+				else if (strcmp(opt, "exitfirst") == 0)
+				{
+					FTT(options).exit_first = 1;
+					FTT(options).run_all = 0;
+				}
+				else if (strcmp(opt, "all") == 0)
+				{
+					FTT(options).exit_first = 0;
+					FTT(options).run_all = 1;
+				}
+				else if (strcmp(opt, "help") == 0)
+				{
+					FTT(options).help_only = 1;
+				}
+			}
+		}
+	}
+}
+
+void FTT(show_help)()
+{
+	char *message = "Usage";
+	puts(message);
+}
+
+int main(int argc, char **argv) {
+	FTT(argparser)(argc, argv);
+
+	if (FTT(options).help_only)
+	{
+		FTT(show_help)();
+	}
+	else
+	{
+		for (; FTT(tests) != 0; FTT(tests) = FTT(tests)->next)
+		{
+			FTT(tests)->run();
+		}
+
+		if (!FTT(test_failed))
+			printf("OK\n");
+	}
+	return FTT(test_failed);
+}
+
 
 FTT(test_t)	*FTT(test_new)(const char *name, void (*test)()) {
 	FTT(test_t) *ret = malloc(sizeof(FTT(test_t)));
@@ -214,17 +315,6 @@ FTT(test_t)	*FTT(test_new)(const char *name, void (*test)()) {
 void	FTT(test_register)(const char *name, void (*test)()) {
 	*FTT(register_handle) = FTT(test_new)(name, test);
 	FTT(register_handle) = &(*FTT(register_handle))->next;
-}
-
-int main() {
-	for (; FTT(tests) != 0; FTT(tests) = FTT(tests)->next) {
-		FTT(tests)->run();
-	}
-
-	if (!FTT(test_failed))
-		printf("OK\n");
-
-	return FTT(test_failed);
 }
 
 FT_TEST_REGISTER_TYPE_LMBD_(int , int  , { printf("%i" ,  int_); }, { return  int1 -  int2; });
