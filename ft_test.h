@@ -18,7 +18,6 @@
 # include <string.h>
 # include <ctype.h>
 
-# define FT_TEST_DEBUG
 # ifndef FT_TEST_DEBUG
 #  define FTT(x) __________ftt_##x
 # else
@@ -84,88 +83,35 @@ void	FTT(test_register)(const char *name, void (*test)());
 		}\
 	} while (0);
 
-# define FT_EQ(type_name, a, b, ...)\
+# define ___FTT_INTERNAL_RUN_CHECK(type_name, a, check, b, oposite_check, ...)\
 	do {\
-		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) != 0) {\
-			printf("Error on test %s: expected %s == %s, but ", FTT(tests)->name, #a, #b);\
+		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) oposite_check 0) {\
+			printf("Error on test %s: expected %s " #check " %s, but ", FTT(tests)->name, #a, #b);\
 			FTT(print_##type_name)((a), ##__VA_ARGS__);\
-			printf(" != ");\
+			printf(" " #oposite_check " ");\
 			FTT(print_##type_name)((b), ##__VA_ARGS__);\
 			printf("\n");\
 			FTT(test_failed) = 1;\
 			return;\
 		}\
 	} while (0);
+
+# define FT_EQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_CHECK(type_name, a, ==, b, !=, ##__VA_ARGS__)
 # define FT_EQUALS(...) FT_EQ(__VA_ARGS__)
 
-# define FT_NEQ(type_name, a, b, ...)\
-	do {\
-		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) == 0) {\
-			printf("Error on test %s: expected %s != %s, but ", FTT(tests)->name, #a, #b);\
-			FTT(print_##type_name)((a), ##__VA_ARGS__);\
-			printf(" == ");\
-			FTT(print_##type_name)((b), ##__VA_ARGS__);\
-			printf("\n");\
-			FTT(test_failed) = 1;\
-			return;\
-		}\
-	} while (0);
+# define FT_NEQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_CHECK(type_name, a, !=, b, ==, ##__VA_ARGS__)
 # define FT_NOT_EQUALS(...) FT_NEQ(__VA_ARGS__)
 
-# define FT_LT(type_name, a, b, ...)\
-	do {\
-		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) < 0) {\
-			printf("Error on test %s: expected %s < %s, but ", FTT(tests)->name, #a, #b);\
-			FTT(print_##type_name)((a), ##__VA_ARGS__);\
-			printf(" >= ");\
-			FTT(print_##type_name)((b), ##__VA_ARGS__);\
-			printf("\n");\
-			FTT(test_failed) = 1;\
-			return;\
-		}\
-	} while (0);
+# define FT_LT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_CHECK(type_name, a, <, b, >=, ##__VA_ARGS__)
 # define FT_LESS_THAN(...) FT_LT(__VA_ARGS__)
 
-# define FT_LE(type_name, a, b, ...)\
-	do {\
-		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) <= 0) {\
-			printf("Error on test %s: expected %s <= %s, but ", FTT(tests)->name, #a, #b);\
-			FTT(print_##type_name)((a), ##__VA_ARGS__);\
-			printf(" > ");\
-			FTT(print_##type_name)((b), ##__VA_ARGS__);\
-			printf("\n");\
-			FTT(test_failed) = 1;\
-			return;\
-		}\
-	} while (0);
+# define FT_LE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_CHECK(type_name, a, <=, b, >, ##__VA_ARGS__)
 # define FT_LESS_EQUAL(...) FT_LE(__VA_ARGS__)
 
-# define FT_GT(type_name, a, b, ...)\
-	do {\
-		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) > 0) {\
-			printf("Error on test %s: expected %s > %s, but ", FTT(tests)->name, #a, #b);\
-			FTT(print_##type_name)((a), ##__VA_ARGS__);\
-			printf(" <= ");\
-			FTT(print_##type_name)((b), ##__VA_ARGS__);\
-			printf("\n");\
-			FTT(test_failed) = 1;\
-			return;\
-		}\
-	} while (0);
+# define FT_GT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_CHECK(type_name, a, >, b, <=, ##__VA_ARGS__)
 # define FT_GREATER_THAN(...) FT_GT(__VA_ARGS__)
 
-# define FT_GE(type_name, a, b, ...)\
-	do {\
-		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) >= 0) {\
-			printf("Error on test %s: expected %s >= %s, but ", FTT(tests)->name, #a, #b);\
-			FTT(print_##type_name)((a), ##__VA_ARGS__);\
-			printf(" < ");\
-			FTT(print_##type_name)((b), ##__VA_ARGS__);\
-			printf("\n");\
-			FTT(test_failed) = 1;\
-			return;\
-		}\
-	} while (0);
+# define FT_GE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_CHECK(type_name, a, >=, b, <, ##__VA_ARGS__)
 # define FT_GREATER_EQUAL(...) FT_GT(__VA_ARGS__)
 
 /*
