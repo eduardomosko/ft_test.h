@@ -18,6 +18,7 @@
 # include <string.h>
 # include <ctype.h>
 
+# define FT_TEST_DEBUG
 # ifndef FT_TEST_DEBUG
 #  define FTT(x) __________ftt_##x
 # else
@@ -45,12 +46,15 @@ typedef struct	FTT(options_s)
 	int			exit_first;
 	int			run_all;
 
+	// Tests to run
+	FTT(test_t)	*tests;
 }				FTT(options_t);
 
 extern int FTT(test_failed);
-extern const char *FTT(current_test);
 
 extern FTT(test_t) *FTT(tests);
+extern FTT(test_t) *FTT(current_test);
+
 extern FTT(options_t) FTT(options);
 
 void	FTT(test_register)(const char *name, const char *file, void (*test)());
@@ -71,9 +75,9 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)());
 # define FT_TRUE(condition)\
 	do {\
 		if (!(condition)) {\
-			printf("Error on test %s: (%s) should be TRUE\n", FTT(tests)->name, #condition);\
+			printf("Error on test %s: (%s) should be TRUE\n", FTT(current_test)->name, #condition);\
 			FTT(test_failed) = 1;\
-			return;\
+			if (!FTT(options).run_all) return;\
 		}\
 	} while (0);
 
@@ -81,16 +85,16 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)());
 # define FT_FALSE(condition)\
 	do {\
 		if ((condition)) {\
-			printf("Error on test %s: (%s) should be FALSE\n", FTT(tests)->name, #condition);\
+			printf("Error on test %s: (%s) should be FALSE\n", FTT(current_test)->name, #condition);\
 			FTT(test_failed) = 1;\
-			return;\
+			if (!FTT(options).run_all) return;\
 		}\
 	} while (0);
 
 # define ___FTT_INTERNAL_RUN_CHECK(type_name, a, check, b, oposite_check, ...)\
 	do {\
 		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) oposite_check 0) {\
-			printf("[%s]: KO: expected %s " #check " %s, but ", FTT(tests)->name, #a, #b);\
+			printf("[%s]: KO: expected %s " #check " %s, but ", FTT(current_test)->name, #a, #b);\
 			FTT(print_##type_name)((a), ##__VA_ARGS__);\
 			printf(" " #oposite_check " ");\
 			FTT(print_##type_name)((b), ##__VA_ARGS__);\
@@ -98,7 +102,7 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)());
 			FTT(test_failed) = 1;\
 			if (!FTT(options).run_all) return;\
 		} else if (FTT(options).verbose) {\
-			printf("[%s]: OK: expected %s " #check " %s, and ", FTT(tests)->name, #a, #b);\
+			printf("[%s]: OK: expected %s " #check " %s, and ", FTT(current_test)->name, #a, #b);\
 			FTT(print_##type_name)((a), ##__VA_ARGS__);\
 			printf(" " #check " ");\
 			FTT(print_##type_name)((b), ##__VA_ARGS__);\
@@ -168,8 +172,11 @@ FT_TYPE(buffer);
 
 int FTT(test_failed) = 0;
 FTT(test_t) *FTT(tests) = 0;
+FTT(test_t) *FTT(current_test) = 0;
 FTT(test_t) **FTT(register_handle) = &FTT(tests);
 FTT(options_t) FTT(options) = {0};
+
+FTT(test_t)	*FTT(test_copy)(FTT(test_t) *t);
 
 void FTT(argparser)(int argc, char **argv)
 {
@@ -235,7 +242,29 @@ void FTT(argparser)(int argc, char **argv)
 				}
 			}
 		}
+		else
+		{
+			static FTT(test_t) **to_run_register_handle = &FTT(options).tests;
+			int found = 0;
+			for (FTT(test_t) *test = FTT(tests); test != 0; test = test->next)
+			{
+				if (strcmp(opt, test->name) == 0)
+				{
+					*to_run_register_handle = FTT(test_copy)(test);
+					to_run_register_handle = &(*to_run_register_handle)->next;
+					found = 1;
+					break;
+				}
+			}
+			if (!found) {
+				printf("Error: test %s not found. Run with -l to list available tests\n", opt);
+				exit(-1);
+			}
+		}
 	}
+
+	if (FTT(options).tests == 0)
+		FTT(options).tests = FTT(tests);
 }
 
 void FTT(show_help)()
@@ -277,9 +306,10 @@ int main(int argc, char **argv) {
 	}
 	else
 	{
-		for (FTT(test_t) *test = FTT(tests); test != 0; test = test->next)
+		for (FTT(current_test) = FTT(options).tests;
+				FTT(current_test) != 0; FTT(current_test) = FTT(current_test)->next)
 		{
-			test->run();
+			FTT(current_test)->run();
 
 			if (FTT(options).exit_first && FTT(test_failed))
 				break;
@@ -291,7 +321,6 @@ int main(int argc, char **argv) {
 	return FTT(test_failed);
 }
 
-
 FTT(test_t)	*FTT(test_new)(const char *name, const char *file, void (*test)()) {
 	FTT(test_t) *ret = malloc(sizeof(FTT(test_t)));
 	if (ret == NULL)
@@ -301,6 +330,10 @@ FTT(test_t)	*FTT(test_new)(const char *name, const char *file, void (*test)()) {
 	ret->file = file;
 	ret->run = test;
 	return (ret);
+}
+
+FTT(test_t)	*FTT(test_copy)(FTT(test_t) *t) {
+	return FTT(test_new)(t->name, t->file, t->run);
 }
 
 void	FTT(test_register)(const char *name, const char *file, void (*test)()) {
