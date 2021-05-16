@@ -86,13 +86,19 @@ void	FTT(test_register)(const char *name, void (*test)());
 # define ___FTT_INTERNAL_RUN_CHECK(type_name, a, check, b, oposite_check, ...)\
 	do {\
 		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) oposite_check 0) {\
-			printf("Error on test %s: expected %s " #check " %s, but ", FTT(tests)->name, #a, #b);\
+			printf("[%s]: KO: expected %s " #check " %s, but ", FTT(tests)->name, #a, #b);\
 			FTT(print_##type_name)((a), ##__VA_ARGS__);\
 			printf(" " #oposite_check " ");\
 			FTT(print_##type_name)((b), ##__VA_ARGS__);\
 			printf("\n");\
 			FTT(test_failed) = 1;\
-			return;\
+			if (!FTT(options).run_all) return;\
+		} else if (FTT(options).verbose) {\
+			printf("[%s]: OK: expected %s " #check " %s, and ", FTT(tests)->name, #a, #b);\
+			FTT(print_##type_name)((a), ##__VA_ARGS__);\
+			printf(" " #check " ");\
+			FTT(print_##type_name)((b), ##__VA_ARGS__);\
+			printf("\n");\
 		}\
 	} while (0);
 
@@ -239,6 +245,9 @@ int main(int argc, char **argv) {
 		for (; FTT(tests) != 0; FTT(tests) = FTT(tests)->next)
 		{
 			FTT(tests)->run();
+
+			if (FTT(options).exit_first && FTT(test_failed))
+				break;
 		}
 
 		if (!FTT(test_failed))
