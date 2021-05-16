@@ -26,8 +26,9 @@
 
 typedef struct	FTT(test_s)
 {
-		struct FTT(test_s) *next;
+	struct FTT(test_s) *next;
 	const char *name;
+	const char *file;
 	void (*run)();
 }				FTT(test_t);
 
@@ -35,8 +36,12 @@ typedef struct	FTT(options_s)
 {
 	const char	*program_name;
 
-	int			verbose;
+	// Logging options
 	int			help_only;
+	int			list_tests;
+
+	// Running options
+	int			verbose;
 	int			exit_first;
 	int			run_all;
 
@@ -48,7 +53,7 @@ extern const char *FTT(current_test);
 extern FTT(test_t) *FTT(tests);
 extern FTT(options_t) FTT(options);
 
-void	FTT(test_register)(const char *name, void (*test)());
+void	FTT(test_register)(const char *name, const char *file, void (*test)());
 
 /*
  *
@@ -59,10 +64,9 @@ void	FTT(test_register)(const char *name, void (*test)());
 # define FT_TEST(test_name) \
 	void FTT(test_case__##test_name)();\
 	void __attribute__((constructor)) FTT(construct_##test_name)() {\
-		FTT(test_register)(#test_name, FTT(test_case__##test_name));\
+		FTT(test_register)(#test_name, __FILE__, FTT(test_case__##test_name));\
 	}\
 	void FTT(test_case__##test_name)()
-
 
 # define FT_TRUE(condition)\
 	do {\
@@ -198,6 +202,9 @@ void FTT(argparser)(int argc, char **argv)
 						case 'h':
 							FTT(options).help_only = 1;
 							break;
+						case 'l':
+							FTT(options).list_tests = 1;
+							break;
 					}
 				}
 			}
@@ -222,6 +229,10 @@ void FTT(argparser)(int argc, char **argv)
 				{
 					FTT(options).help_only = 1;
 				}
+				else if (strcmp(opt, "list") == 0)
+				{
+					FTT(options).list_tests = 1;
+				}
 			}
 		}
 	}
@@ -243,6 +254,16 @@ void FTT(show_help)()
 	, FTT(options).program_name);
 }
 
+void FTT(list_tests)()
+{
+	puts("Tests found:");
+	for (FTT(test_t) *test = FTT(tests); test != 0; test = test->next)
+	{
+		printf(
+		"	%-19s %s\n", test->name, test->file);
+	}
+}
+
 int main(int argc, char **argv) {
 	FTT(argparser)(argc, argv);
 
@@ -250,11 +271,15 @@ int main(int argc, char **argv) {
 	{
 		FTT(show_help)();
 	}
+	else if (FTT(options).list_tests)
+	{
+		FTT(list_tests)();
+	}
 	else
 	{
-		for (; FTT(tests) != 0; FTT(tests) = FTT(tests)->next)
+		for (FTT(test_t) *test = FTT(tests); test != 0; test = test->next)
 		{
-			FTT(tests)->run();
+			test->run();
 
 			if (FTT(options).exit_first && FTT(test_failed))
 				break;
@@ -267,18 +292,19 @@ int main(int argc, char **argv) {
 }
 
 
-FTT(test_t)	*FTT(test_new)(const char *name, void (*test)()) {
+FTT(test_t)	*FTT(test_new)(const char *name, const char *file, void (*test)()) {
 	FTT(test_t) *ret = malloc(sizeof(FTT(test_t)));
 	if (ret == NULL)
 		exit(-1);
 	ret->next = NULL;
 	ret->name = name;
+	ret->file = file;
 	ret->run = test;
 	return (ret);
 }
 
-void	FTT(test_register)(const char *name, void (*test)()) {
-	*FTT(register_handle) = FTT(test_new)(name, test);
+void	FTT(test_register)(const char *name, const char *file, void (*test)()) {
+	*FTT(register_handle) = FTT(test_new)(name, file, test);
 	FTT(register_handle) = &(*FTT(register_handle))->next;
 }
 
