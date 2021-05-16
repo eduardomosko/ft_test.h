@@ -17,12 +17,19 @@
 # include <stdlib.h>
 # include <string.h>
 # include <ctype.h>
+# include <unistd.h>
+# include <fcntl.h>
+# include <sys/mman.h>
 
 # define FT_TEST_DEBUG
 # ifndef FT_TEST_DEBUG
 #  define FTT(x) __________ftt_##x
 # else
 #  define FTT(x) ftt_##x
+# endif
+
+# ifndef FT_OUTPUT_MAXSIZE
+#  define FT_OUTPUT_MAXSIZE 512
 # endif
 
 typedef struct	FTT(test_s)
@@ -130,6 +137,60 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)());
 
 /*
  *
+ *   I/O CHECKS
+ *
+ */
+
+# ifdef linux
+#  define __FTT_INTERNAL_GET_TEMPFILE(name) open("/dev/shm" name, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)
+# else
+#  define __FTT_INTERNAL_GET_TEMPFILE(name) shm_open(name, O_CREAT | O_RDWR, S_IRWXU)
+# endif
+
+# define __FT_OUTPUT_IMPL(statement1, statement2, file, line)\
+	do {\
+		fflush(stdout);\
+		int backup = dup(1);\
+		int fd1 = __FTT_INTERNAL_GET_TEMPFILE("/__ft_test_" file #line "_1");\
+		dup2(fd1, 1);\
+		statement1;\
+		fflush(stdout);\
+		int fd2 = __FTT_INTERNAL_GET_TEMPFILE("/__ft_test_" file #line "_2");\
+		dup2(fd2, 1);\
+		statement2;\
+		fflush(stdout);\
+		dup2(backup, 1);\
+		close(backup);\
+		if (FTT(comp_fd)(fd1, fd2) != 0) {\
+			printf("[%s]: KO: expected output of [ %s ] == output [ %s ], but ", FTT(current_test)->name, #statement1, #statement2);\
+			FTT(print_fd)(fd1);\
+			printf(" != ");\
+			FTT(print_fd)(fd2);\
+			printf("\n");\
+			FTT(test_failed) = 1;\
+			close(fd1);\
+			close(fd2);\
+			if (!FTT(options).run_all) return;\
+		} else if (FTT(options).verbose) {\
+			printf("[%s]: OK: expected output of [ %s ] == output [ %s ], and ", FTT(current_test)->name, #statement1, #statement2);\
+			FTT(print_fd)(fd1);\
+			printf(" == ");\
+			FTT(print_fd)(fd2);\
+			printf("\n");\
+			close(fd1);\
+			close(fd2);\
+		} else { \
+			close(fd1);\
+			close(fd2);\
+		}\
+	} while(0)
+
+
+# define FT_OUTPUT(statement, expected)\
+	__FT_OUTPUT_IMPL(statement, expected, __FILE__, __LINE__)
+
+/*
+ *
  *   TYPES
  *
  */
@@ -167,6 +228,7 @@ FT_TYPE(uint);
 FT_TYPE(ulong);
 FT_TYPE(str);
 FT_TYPE(buffer);
+FT_TYPE(fd);
 
 # ifdef FT_TEST_MAIN
 
@@ -362,6 +424,46 @@ FT_TEST_REGISTER_TYPE_LAMBDA(buffer, void*,
 			}
 			printf("]");
 		}, (void *b1, void *b2, size_t size) { return memcmp(b1, b2, size); });
+
+FT_TEST_REGISTER_TYPE_LMBD(fd, int,
+		{
+			char buffer[128];
+			ssize_t bytes_read;
+			lseek(fd, 0, SEEK_SET);
+			printf("{");
+			while ((bytes_read = read(fd, buffer, 128)) > 0)
+			{
+				for (ssize_t i = 0; i < bytes_read; ++i)
+				{
+					if (isprint(buffer[i]))
+						printf("%c", buffer[i]);
+					else
+						printf("\e[1;29m\\%03o\e[0m", ((unsigned char*)buffer)[i]);
+				}
+			}
+			printf("}");
+		},
+		{
+			char buffer1[128];
+			char buffer2[128];
+			ssize_t br1;
+			ssize_t br2;
+			int ret;
+			lseek(fd1, 0, SEEK_SET);
+			lseek(fd2, 0, SEEK_SET);
+			while (1)
+			{
+				br1 = read(fd1, buffer1, 128);
+				br2 = read(fd2, buffer2, 128);
+				if (br1 != br2)
+					return (br1 - br2);
+				if (br1 > 0 && (ret = memcmp(buffer1, buffer2, br1)) != 0)
+					return (ret);
+				else
+					break;
+			}
+			return (0);
+		});
 
 # endif
 
