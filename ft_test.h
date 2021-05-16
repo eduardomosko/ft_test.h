@@ -333,7 +333,7 @@ FT_TEST_REGISTER_TYPE_LAMBDA(buffer, void*,
 				if (isprint(*buffer))
 					printf("%c", *buffer);
 				else
-					printf("\e[1;29m\\%u\e[0m", *(unsigned char*)buffer);
+					printf("\e[1;29m\\%03o\e[0m", *(unsigned char*)buffer);
 				++buffer;
 			}
 			printf("]");
