@@ -140,21 +140,27 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)());
  *
  */
 
+# define FTT_STR_IMPL(x) #x
+# define FTT_STR(x) FTT_STR_IMPL(x)
+
 # ifdef linux
 #  define __FTT_INTERNAL_GET_TEMPFILE(name) open("/dev/shm" name, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)
+#  define __FTT_INTERNAL_CLEAN_TEMPFILE(name) unlink("/dev/shm" name)
 # else
 #  define __FTT_INTERNAL_GET_TEMPFILE(name) shm_open(name, O_CREAT | O_RDWR, S_IRWXU)
+#  define __FTT_INTERNAL_CLEAN_TEMPFILE(name) shm_unlink(name)
 # endif
 
 # define __FT_OUTPUT_IMPL(statement1, statement2, file, line)\
 	do {\
 		fflush(stdout);\
+		int failed = 0;\
 		int backup = dup(1);\
-		int fd1 = __FTT_INTERNAL_GET_TEMPFILE("/__ft_test_" file #line "_1");\
+		int fd1 = __FTT_INTERNAL_GET_TEMPFILE("/__ft_test_" file FTT_STR(line) "_1");\
 		dup2(fd1, 1);\
 		statement1;\
 		fflush(stdout);\
-		int fd2 = __FTT_INTERNAL_GET_TEMPFILE("/__ft_test_" file #line "_2");\
+		int fd2 = __FTT_INTERNAL_GET_TEMPFILE("/__ft_test_" file FTT_STR(line) "_2");\
 		dup2(fd2, 1);\
 		statement2;\
 		fflush(stdout);\
@@ -167,21 +173,19 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)());
 			FTT(print_fd)(fd2);\
 			printf("\n");\
 			FTT(test_failed) = 1;\
-			close(fd1);\
-			close(fd2);\
-			if (!FTT(options).run_all) return;\
+			failed = 1;\
 		} else if (FTT(options).verbose) {\
 			printf("[%s]: OK: expected output of [ %s ] == output [ %s ], and ", FTT(current_test)->name, #statement1, #statement2);\
 			FTT(print_fd)(fd1);\
 			printf(" == ");\
 			FTT(print_fd)(fd2);\
 			printf("\n");\
-			close(fd1);\
-			close(fd2);\
-		} else { \
-			close(fd1);\
-			close(fd2);\
 		}\
+		close(fd1);\
+		close(fd2);\
+		__FTT_INTERNAL_CLEAN_TEMPFILE("/__ft_test_" file FTT_STR(line) "_1");\
+		__FTT_INTERNAL_CLEAN_TEMPFILE("/__ft_test_" file FTT_STR(line) "_2");\
+		if (failed && !FTT(options).run_all) return;\
 	} while(0)
 
 
