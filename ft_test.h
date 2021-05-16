@@ -229,8 +229,18 @@ void FTT(argparser)(int argc, char **argv)
 
 void FTT(show_help)()
 {
-	char *message = "Usage";
-	puts(message);
+	printf(
+		"Usage: %s [OPTIONS]\n"
+		"\n"
+		"OPTIONS:\n"
+		"	-v, --verbose       Shows information about every assertion\n"
+		"	-x, --exitfirst     Exits on first assertion failed\n"
+		"	-a, --all           Runs every assertion\n"
+		"	-h, --help          Shows this message\n"
+		"\n"
+		"\n"
+		"ft_test.h: made with <3 by Eduardo \"emendes-\" Mosko at 42saopaulo"
+	, FTT(options).program_name);
 }
 
 int main(int argc, char **argv) {
