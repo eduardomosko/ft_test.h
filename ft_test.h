@@ -21,7 +21,6 @@
 # include <fcntl.h>
 # include <sys/mman.h>
 
-# define FT_TEST_DEBUG
 # ifndef FT_TEST_DEBUG
 #  define FTT(x) __________ftt_##x
 # else
@@ -403,6 +402,36 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)()) {
 	FTT(register_handle) = &(*FTT(register_handle))->next;
 }
 
+void FTT(print_escaped_buffer)(char *buffer, size_t size)
+{
+	for (size_t i = 0; i < size; ++i) {
+		if (isprint(*buffer))
+			printf("%c", *buffer);
+		else
+		{
+			printf("\e[1;29m");
+			switch (*buffer)
+			{
+				case '\a': printf("\\a"); break;
+				case '\b': printf("\\b"); break;
+				case '\f': printf("\\f"); break;
+				case '\n': printf("\\n"); break;
+				case '\r': printf("\\r"); break;
+				case '\t': printf("\\t"); break;
+				case '\v': printf("\\v"); break;
+				case '\\': printf("\\\\"); break;
+				case '\'': printf("\\'"); break;
+				case '\"': printf("\\\""); break;
+				case '\?': printf("\\?"); break;
+				case '\e': printf("\\e"); break;
+				default: printf("\\%03o", *(unsigned char*)buffer); break;
+			}
+			printf("\e[0m");
+		}
+		++buffer;
+	}
+}
+
 FT_TEST_REGISTER_TYPE_LMBD_(int , int  , { printf("%i" ,  int_); }, { return  int1 -  int2; });
 FT_TEST_REGISTER_TYPE_LMBD_(long, long , { printf("%li", long_); }, { return long1 - long2; });
 FT_TEST_REGISTER_TYPE_LMBD (ptr , void*, { printf("%p" ,  ptr ); }, { return  ptr1 -  ptr2; });
@@ -413,15 +442,9 @@ FT_TEST_REGISTER_TYPE_LMBD (ulong, unsigned long, { printf("%lu", ulong); }, { r
 FT_TEST_REGISTER_TYPE_LMBD (str, char*, { printf("\"%s\"", str); }, { return strcmp(str1, str2); });
 
 FT_TEST_REGISTER_TYPE_LAMBDA(buffer, void*,
-		(char *buffer, size_t size) {
+		(void *buffer, size_t size) {
 			printf("[");
-			for (size_t i = 0; i < size; ++i) {
-				if (isprint(*buffer))
-					printf("%c", *buffer);
-				else
-					printf("\e[1;29m\\%03o\e[0m", *(unsigned char*)buffer);
-				++buffer;
-			}
+			FTT(print_escaped_buffer)(buffer, size);
 			printf("]");
 		}, (void *b1, void *b2, size_t size) { return memcmp(b1, b2, size); });
 
@@ -433,13 +456,7 @@ FT_TEST_REGISTER_TYPE_LMBD(fd, int,
 			printf("{");
 			while ((bytes_read = read(fd, buffer, 128)) > 0)
 			{
-				for (ssize_t i = 0; i < bytes_read; ++i)
-				{
-					if (isprint(buffer[i]))
-						printf("%c", buffer[i]);
-					else
-						printf("\e[1;29m\\%03o\e[0m", ((unsigned char*)buffer)[i]);
-				}
+				FTT(print_escaped_buffer)(buffer, bytes_read);
 			}
 			printf("}");
 		},
