@@ -405,7 +405,7 @@ void FTT(argparser)(int argc, char **argv)
 void FTT(show_help)()
 {
 	printf(
-		"Usage: %s [OPTIONS]\n"
+		"Usage: %s [OPTIONS...] [TESTS...]\n"
 		"\n"
 		"OPTIONS:\n"
 		"	-v, --verbose       Shows information about every assertion\n"
@@ -413,8 +413,11 @@ void FTT(show_help)()
 		"	-a, --all           Runs every assertion\n"
 		"	-h, --help          Shows this message\n"
 		"\n"
+		"TESTS:\n"
+		"	Tests to run\n"
 		"\n"
-		"ft_test.h: made with <3 by Eduardo \"emendes-\" Mosko at 42saopaulo"
+		"\n"
+		"ft_test.h: made with <3 by Eduardo \"emendes-\" Mosko at 42saopaulo\n"
 	, FTT(options).program_name);
 }
 
