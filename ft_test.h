@@ -195,21 +195,25 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)());
 # define FT_INPUT(printer, reader)\
 	do {\
 		fflush(stdout);\
-		int backup = dup(1);\
-		int fd1 = __FTT_INTERNAL_GET_TEMPFILE("/__ft_test_" __FILE__ FTT_STR(__LINE__) "_1");\
-		dup2(fd1, 1);\
-		printer;\
-		fflush(stdout);\
-		dup2(backup, 1);\
-		close(backup);\
-		lseek(fd1, 0, SEEK_SET);\
-		backup = dup(0);\
-		dup2(fd1, 0);\
-		reader;\
-		dup2(backup, 0);\
-		close(backup);\
-		close(fd1);\
-		__FTT_INTERNAL_CLEAN_TEMPFILE("/__ft_test_" __FILE__ FTT_STR(__LINE__) "_1");\
+		int p[2];\
+		pipe(p);\
+		if (fork()) {\
+			int backup = dup(0);\
+			dup2(p[0], 0);\
+			reader;\
+			dup2(backup, 0);\
+			close(backup);\
+			close(p[0]);\
+		} else {\
+			int backup = dup(1);\
+			fflush(stdout);\
+			dup2(p[1], 1);\
+			printer;\
+			fflush(stdout);\
+			dup2(backup, 1);\
+			close(p[1]);\
+			exit(0);\
+		}\
 	} while(0)
 
 /*
@@ -463,7 +467,11 @@ FT_TEST_REGISTER_TYPE_LMBD (ptr , void*, { printf("%p" ,  ptr ); }, { return  pt
 FT_TEST_REGISTER_TYPE_LMBD (uint , unsigned  int, { printf( "%u", uint ); }, { return  uint1 -  uint2; });
 FT_TEST_REGISTER_TYPE_LMBD (ulong, unsigned long, { printf("%lu", ulong); }, { return ulong1 - ulong2; });
 
-FT_TEST_REGISTER_TYPE_LMBD (str, char*, { printf("\"%s\"", str); }, { return strcmp(str1, str2); });
+FT_TEST_REGISTER_TYPE_LMBD (str, char*, {
+			printf("\e[1;29m\"");
+			FTT(print_escaped_buffer)(str, strlen(str));
+			printf("\"\e[0m");
+		}, { return strcmp(str1, str2); });
 
 FT_TEST_REGISTER_TYPE_LAMBDA(buffer, void*,
 		(void *buffer, size_t size) {
