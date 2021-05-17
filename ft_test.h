@@ -148,7 +148,7 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)());
 #  define __FTT_INTERNAL_CLEAN_TEMPFILE(name) unlink("/dev/shm" name)
 # else
 #  define __FTT_INTERNAL_GET_TEMPFILE(name) open("/tmp" name, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)
-#  define __FTT_INTERNAL_CLEAN_TEMPFILE(name) open("/tmp" name)
+#  define __FTT_INTERNAL_CLEAN_TEMPFILE(name) unlink("/tmp" name)
 # endif
 
 # define __FT_OUTPUT_IMPL(statement1, statement2, file, line)\
@@ -191,6 +191,26 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)());
 
 # define FT_OUTPUT(statement, expected)\
 	__FT_OUTPUT_IMPL(statement, expected, __FILE__, __LINE__)
+
+# define FT_INPUT(printer, reader)\
+	do {\
+		fflush(stdout);\
+		int backup = dup(1);\
+		int fd1 = __FTT_INTERNAL_GET_TEMPFILE("/__ft_test_" __FILE__ FTT_STR(__LINE__) "_1");\
+		dup2(fd1, 1);\
+		printer;\
+		fflush(stdout);\
+		dup2(backup, 1);\
+		close(backup);\
+		lseek(fd1, 0, SEEK_SET);\
+		backup = dup(0);\
+		dup2(fd1, 0);\
+		reader;\
+		dup2(backup, 0);\
+		close(backup);\
+		close(fd1);\
+		__FTT_INTERNAL_CLEAN_TEMPFILE("/__ft_test_" __FILE__ FTT_STR(__LINE__) "_1");\
+	} while(0)
 
 /*
  *
