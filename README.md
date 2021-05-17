@@ -2,7 +2,7 @@
 
 Welcome to what aspires to be the easiest testing framework for C. To achieve this, `ft_test.h` cuts numerous corners when it comes to portbility and performance, for example it is only available for linux and Mac OS at the moment, and is only tested with gcc and clang. However those conditions allow for a very clean API that is great for testing small projects and assignments.
 
-For example, testing a fibonacci function all you need is this:
+For example, when testing a fibonacci function all you need is this:
 
 ```c
 #define FT_TEST_MAIN
