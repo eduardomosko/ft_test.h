@@ -147,8 +147,8 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)());
 #  define __FTT_INTERNAL_GET_TEMPFILE(name) open("/dev/shm" name, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)
 #  define __FTT_INTERNAL_CLEAN_TEMPFILE(name) unlink("/dev/shm" name)
 # else
-#  define __FTT_INTERNAL_GET_TEMPFILE(name) shm_open(name, O_CREAT | O_RDWR, S_IRWXU)
-#  define __FTT_INTERNAL_CLEAN_TEMPFILE(name) shm_unlink(name)
+#  define __FTT_INTERNAL_GET_TEMPFILE(name) open("/tmp" name, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)
+#  define __FTT_INTERNAL_CLEAN_TEMPFILE(name) open("/tmp" name)
 # endif
 
 # define __FT_OUTPUT_IMPL(statement1, statement2, file, line)\
