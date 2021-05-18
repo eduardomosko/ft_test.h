@@ -64,6 +64,7 @@ Until this moment, these are the macros implemented:
 - FT_OUTPUT, FT_INPUT
 
   These are probably one of the biggest selling points of this framework. They let you redirect stdin and stdout temporarly for your tests. FT_OUTPUT checks that the output of a statement (may be multi-line) is the same of another. FT_INPUT redirects the output of the first to the input of the second. It does not perform any checks. Examples:
+
 ```c
 FT_TEST(output)
 {
@@ -85,6 +86,38 @@ FT_TEST(input)
 }
 ```
 
+- FT_SETUP and FT_TEARDOWN
+
+  Fixture macros! They allow you to setup some data for all the tests that request them.
+
+```c
+FT_SETUP(memcmp, { char b1[512]; char b2[512] })
+{
+	memset(ftt->b1, 0, 512);
+	memset(ftt->b2, 0, 512);
+}
+
+FT_TEST(memcmp1, memcmp)
+{
+	FT_EQ(int, memcmp(ftt->b1, ftt->b2, 512), 0);
+
+	ftt->b2[511] = 'a';
+	FT_LT(int, memcmp(ftt->b1, ftt->b2, 512), 0);
+
+	ftt->b1[5] = 'a';
+	FT_GT(int, memcmp(ftt->b1, ftt->b2, 512), 0);
+}
+
+FT_TEST(memcmp2, memcmp)
+{
+	/* Each test data is isolated */
+	FT_EQ(int, memcmp(ftt->b1, ftt->b2, 512), 0);
+}
+
+/* You must have a teardown for each setup, even if it does nothing */
+FT_TEARDOWN(memcmp) {}
+```
+
 - FT_TEST_REGISTER_TYPE_LAMBDA, FT_TEST_REGISTER_TYPE_LMBD, FT_TEST_REGISTER_TYPE_LMBD_, FT_TEST_REGISTER_TYPE, FT_TEST_TYPE_ALIAS, FT_TYPE
 
   These are for registering your own types. More info coming soon...
@@ -93,7 +126,9 @@ FT_TEST(input)
 # Available types
 
 For now, these are the included types available for testing, I hope it's obvious what each of them represent.
+
 - int, uint, long, ulong
+- float, double, aprx_float, aprx_double
 - str, buffer, ptr
 - fd
 
