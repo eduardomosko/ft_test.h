@@ -181,48 +181,7 @@ void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
 # define FTT_STR_IMPL(x) #x
 # define FTT_STR(x) FTT_STR_IMPL(x)
 
-# ifdef linux
-#  define __FTT_INTERNAL_GET_TEMPFILE(name) open("/dev/shm" name, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)
-#  define __FTT_INTERNAL_CLEAN_TEMPFILE(name) unlink("/dev/shm" name)
-#  define __FT_OUTPUT_IMPL(statement1, statement2, file, line)\
-	do {\
-		fflush(stdout);\
-		int failed = 0;\
-		int backup = dup(1);\
-		int fd1 = __FTT_INTERNAL_GET_TEMPFILE("/__ft_test_" file FTT_STR(line) "_1");\
-		dup2(fd1, 1);\
-		statement1;\
-		fflush(stdout);\
-		int fd2 = __FTT_INTERNAL_GET_TEMPFILE("/__ft_test_" file FTT_STR(line) "_2");\
-		dup2(fd2, 1);\
-		statement2;\
-		fflush(stdout);\
-		dup2(backup, 1);\
-		close(backup);\
-		if (FTT(comp_fd)(fd1, fd2) != 0) {\
-			printf("[%s]: KO: expected output of [ %s ] == output [ %s ], but ", FTT(current_test)->name, #statement1, #statement2);\
-			FTT(print_fd)(fd1);\
-			printf(" != ");\
-			FTT(print_fd)(fd2);\
-			printf("\n");\
-			FTT(test_failed) = 1;\
-			failed = 1;\
-		} else if (FTT(options).verbose) {\
-			printf("[%s]: OK: expected output of [ %s ] == output [ %s ], and ", FTT(current_test)->name, #statement1, #statement2);\
-			FTT(print_fd)(fd1);\
-			printf(" == ");\
-			FTT(print_fd)(fd2);\
-			printf("\n");\
-		}\
-		close(fd1);\
-		close(fd2);\
-		__FTT_INTERNAL_CLEAN_TEMPFILE("/__ft_test_" file FTT_STR(line) "_1");\
-		__FTT_INTERNAL_CLEAN_TEMPFILE("/__ft_test_" file FTT_STR(line) "_2");\
-		if (failed && !FTT(options).run_all) return;\
-	} while(0)
-
-# else
-#  define __FT_OUTPUT_IMPL(statement1, statement2, file, line)\
+# define __FT_OUTPUT_IMPL(statement1, statement2, file, line)\
 	do {\
 		int failed = 0;\
 		int p1[2];\
@@ -268,9 +227,6 @@ void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
 		}\
 		if (failed && !FTT(options).run_all) return;\
 	} while(0)
-
-# endif
-
 
 
 # define FT_OUTPUT(statement, expected)\
