@@ -325,7 +325,8 @@ void FTT(argparser)(int argc, char **argv)
 	FTT(options).program_name = *argv;
 
 	// Check every argument
-	for (int i = 1; i < argc; ++i)
+	int i;
+	for (i = 1; i < argc; ++i)
 	{
 		char *opt = argv[i];
 
@@ -388,7 +389,8 @@ void FTT(argparser)(int argc, char **argv)
 		{
 			static FTT(test_t) **to_run_register_handle = &FTT(options).tests;
 			int found = 0;
-			for (FTT(test_t) *test = FTT(tests); test != 0; test = test->next)
+			FTT(test_t) *test;
+			for (test = FTT(tests); test != 0; test = test->next)
 			{
 				if (strcmp(opt, test->name) == 0)
 				{
@@ -431,7 +433,8 @@ void FTT(show_help)()
 void FTT(list_tests)()
 {
 	puts("Tests found:");
-	for (FTT(test_t) *test = FTT(tests); test != 0; test = test->next)
+	FTT(test_t) *test;
+	for (test = FTT(tests); test != 0; test = test->next)
 	{
 		printf(
 		"	%-19s %s\n", test->name, test->file);
@@ -491,7 +494,8 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)()) {
 
 void FTT(print_escaped_buffer)(char *buffer, size_t size)
 {
-	for (size_t i = 0; i < size; ++i) {
+	size_t i;
+	for (i = 0; i < size; ++i) {
 		if (isprint(*buffer))
 			printf("%c", *buffer);
 		else
