@@ -54,10 +54,15 @@ ft_test.h: made with <3 by Eduardo "emendes-" Mosko at 42saopaulo
 Until this moment, these are the macros implemented:
 
 - FT_TEST
+  
   This registers a new test case. It only accepts valid C identifiers as name (so \[\_0-9a-zA-Z] characters only).
+
 - FT_EQUALS, FT_EQUALS, FT_LESS_THAN, FT_GREATER_THAN, FT_LESS_EQUAL, FT_GREATER_EQUAL
+  
   These are the basic testing macros, they check the condition for the specified [type](#available-types). All of them also come in the obvious compact form (FT_EQ, FT_NEQ, FT_LT...)
+
 - FT_OUTPUT, FT_INPUT
+
   These are probably one of the biggest selling points of this framework. They let you redirect stdin and stdout temporarly for your tests. FT_OUTPUT checks that the output of a statement (may be multi-line) is the same of another. FT_INPUT redirects the output of the first to the input of the second. It does not perform any checks. Examples:
 ```c
 FT_TEST(output)
@@ -81,6 +86,7 @@ FT_TEST(input)
 ```
 
 - FT_TEST_REGISTER_TYPE_LAMBDA, FT_TEST_REGISTER_TYPE_LMBD, FT_TEST_REGISTER_TYPE_LMBD_, FT_TEST_REGISTER_TYPE, FT_TEST_TYPE_ALIAS, FT_TYPE
+
   These are for registering your own types. More info coming soon...
 
 
@@ -94,4 +100,5 @@ For now, these are the included types available for testing, I hope it's obvious
 
 # License
 Copyright: Eduardo "emendes-" Mosko  2021.
+
 Refer to LICENSE for licensing info, but in a nutshell, you gotta keep my Copyright Info if reproducing the source code.
