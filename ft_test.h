@@ -235,13 +235,13 @@ void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
 		pipe(p2);\
 		fflush(stdout);\
 		if (!fork()) {\
-			dup2(p1[1], 1);\
+			dup2(p1[1], fileno(stdout));\
 			statement1;\
 			fflush(stdout);\
 			close(p1[1]);\
 			exit(0);\
 		} else if (!fork()) {\
-			dup2(p2[1], 1);\
+			dup2(p2[1], fileno(stdout));\
 			statement2;\
 			fflush(stdout);\
 			close(p2[1]);\
@@ -282,19 +282,20 @@ void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
 		int p[2];\
 		pipe(p);\
 		if (fork()) {\
-			int backup = dup(0);\
-			dup2(p[0], 0);\
+			int backup = dup(fileno(stdin));\
+			dup2(p[0], fileno(stdin));\
 			reader;\
-			dup2(backup, 0);\
-			close(backup);\
 			close(p[0]);\
+			fclose(stdin);\
+			freopen("/dev/null", "r", stdin);\
+			dup2(backup, fileno(stdin));\
+			close(backup);\
 		} else {\
-			int backup = dup(1);\
-			fflush(stdout);\
-			dup2(p[1], 1);\
+			int backup = dup(fileno(stdout));\
+			dup2(p[1], fileno(stdout));\
 			printer;\
 			fflush(stdout);\
-			dup2(backup, 1);\
+			dup2(backup, fileno(stdout));\
 			close(p[1]);\
 			exit(0);\
 		}\
