@@ -333,6 +333,14 @@ void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
 	int FTT(comp_##type_name)();\
 	void FTT(print_##type_name)()
 
+#define FT_TYPE_T(type_name, type, args...)\
+	int FTT(comp_##type_name)(type, type, ##args);\
+	void FTT(print_##type_name)(type, ##args)
+
+#define FT_TYPE_TE(type_name, args...)\
+	int FTT(comp_##type_name)(type_name, type_name, ##args);\
+	void FTT(print_##type_name)(type_name, ##args)
+
 FT_TYPE(int);
 FT_TYPE(long);
 FT_TYPE(ptr);
@@ -341,6 +349,10 @@ FT_TYPE(ulong);
 FT_TYPE(str);
 FT_TYPE(buffer);
 FT_TYPE(fd);
+FT_TYPE_TE(double);
+FT_TYPE_TE(float);
+FT_TYPE_T(aprx_float , float , float );
+FT_TYPE_T(aprx_double, double, double);
 
 # ifdef FT_TEST_MAIN
 
@@ -558,11 +570,23 @@ FT_TEST_REGISTER_TYPE_LMBD (ptr , void*, { printf("%p" ,  ptr ); }, { return  pt
 FT_TEST_REGISTER_TYPE_LMBD (uint , unsigned  int, { printf( "%u", uint ); }, { return  uint1 -  uint2; });
 FT_TEST_REGISTER_TYPE_LMBD (ulong, unsigned long, { printf("%lu", ulong); }, { return ulong1 - ulong2; });
 
+FT_TEST_REGISTER_TYPE_LMBD_(float , float , { printf("%f",  float_); }, { return float1  <  float2? -1 :  float1 ==  float2? 0 : 1; });
+FT_TEST_REGISTER_TYPE_LMBD_(double, double, { printf("%f", double_); }, { return double1 < double2? -1 : double1 == double2? 0 : 1; });
+
+FT_TEST_REGISTER_TYPE_LAMBDA(aprx_float , float ,
+		(float f , float _) { printf("%f", f); },
+		(float f1, float f2, float tol) { return f1 + tol < f2? -1 : f1 - tol > f2? 1 : 0; });
+
+FT_TEST_REGISTER_TYPE_LAMBDA(aprx_double, double,
+		(double d , double _) { printf("%f", d); },
+		(double d1, double d2, double tol) { return d1 + tol < d2? -1 : d1 - tol > d2 ? 1 : 0; });
+
 FT_TEST_REGISTER_TYPE_LMBD (str, char*, {
 			printf("\e[1;29m\"");
 			FTT(print_escaped_buffer)(str, strlen(str));
 			printf("\"\e[0m");
 		}, { return strcmp(str1, str2); });
+
 
 FT_TEST_REGISTER_TYPE_LAMBDA(buffer, void*,
 		(void *buffer, size_t size) {
