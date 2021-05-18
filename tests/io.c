@@ -8,20 +8,16 @@ FT_TEST(output) {
 FT_TEST(input) {
 	int val = 0;
 	int val2 = 0;
-	char *line = 0;
-	size_t read_size;
+	char ch = 0;
 
 	FT_EQ(int, val, 0);
 	FT_EQ(int, val2, 0);
 
-	FT_INPUT(printf("This is my line printed by printf\n\n\n\n"), getline(&line, &read_size, stdin));
-	FT_EQ(str, "This is my line printed by printf\n", line);
-	free(line);
-	line = 0;
+	FT_INPUT(printf("This is my line printed by printf\n\n\n\n"), ch = getchar());
+	FT_EQ(int, 'T', ch);
 
-	FT_INPUT(puts("This is my line printed by puts"), getline(&line, &read_size, stdin));
-	FT_EQ(str, "This is my line printed by puts\n", line);
-	free(line);
+	FT_INPUT(puts("Another line, it is printed by puts"), ch = getchar());
+	FT_EQ(int, 'A', ch);
 
 	FT_INPUT(puts("10 345"), scanf("%i %i", &val, &val2));
 	FT_EQ(int, val, 10);
