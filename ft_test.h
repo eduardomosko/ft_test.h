@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   ft_test.h                                          :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: emendes- <emendes-@student.42sp.org.br>    +#+  +:+       +#+        */
+/*   By : emendes- <emendes-@student.42sp.org.br>   +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/05/12 18:50:43 by emendes-          #+#    #+#             */
-/*   Updated: 2021/05/15 13:22:53 by emendes-         ###   ########.fr       */
+/*   Updated: 2021/05/17 22:47:17 by emendes-         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -29,6 +29,10 @@
 
 # ifndef FT_OUTPUT_MAXSIZE
 #  define FT_OUTPUT_MAXSIZE 512
+# endif
+
+# ifndef FT_TEST_MAXSECTIONS
+#  define FT_TEST_MAXSECTIONS 32
 # endif
 
 typedef struct	FTT(test_s)
@@ -64,19 +68,53 @@ extern FTT(test_t) *FTT(current_test);
 extern FTT(options_t) FTT(options);
 
 void	FTT(test_register)(const char *name, const char *file, void (*test)());
+typedef char FTT(fixture_data__);
+FTT(fixture_data__) *FTT(fixture_setup__)(void);
+void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
 
 /*
  *
- *   TESTS
+ *   TESTS CASES
  *
  */
 
-# define FT_TEST(test_name) \
-	void FTT(test_case__##test_name)();\
-	void __attribute__((constructor)) FTT(construct_##test_name)() {\
-		FTT(test_register)(#test_name, __FILE__, FTT(test_case__##test_name));\
+# define FT_SETUP(fixture_name, data_t)\
+	typedef struct FTT(fixture_data__##fixture_name) data_t FTT(fixture_data__##fixture_name);\
+	static void FTT(fixture_setup_impl__##fixture_name)(FTT(fixture_data__##fixture_name) *ftt);\
+	static void FTT(fixture_teardown__##fixture_name)(FTT(fixture_data__##fixture_name) *ftt);\
+	static struct FTT(fixture_data__##fixture_name) *FTT(fixture_setup__##fixture_name)(void) {\
+		struct FTT(fixture_data__##fixture_name) *data = malloc(sizeof(*data));\
+		FTT(fixture_setup_impl__##fixture_name)(data);\
+		return (data);\
 	}\
-	void FTT(test_case__##test_name)()
+	static void FTT(fixture_setup_impl__##fixture_name)(FTT(fixture_data__##fixture_name) *ftt)
+
+# define FT_TEST(test_name, fixture_name...) \
+	void FTT(test_case__##test_name)();\
+	void FTT(test_runner__##test_name)();\
+	void __attribute__((constructor)) FTT(construct_##test_name)() {\
+		FTT(test_register)(#test_name, __FILE__, FTT(test_runner__##test_name));\
+	}\
+	void FTT(test_runner__##test_name)(void) {\
+		void *data = FTT(fixture_setup__##fixture_name)();\
+		FTT(test_case__##test_name)(data);\
+		FTT(fixture_teardown__##fixture_name)(data);\
+	}\
+	void FTT(test_case__##test_name)(FTT(fixture_data__##fixture_name) *ftt)
+
+# define FT_TEARDOWN(fixture_name)\
+	static void FTT(fixture_teardown_impl__##fixture_name)(FTT(fixture_data__##fixture_name) *ftt);\
+	static void FTT(fixture_teardown__##fixture_name)(FTT(fixture_data__##fixture_name) *ftt) {\
+		FTT(fixture_teardown_impl__##fixture_name)(ftt);\
+		free(ftt);\
+	}\
+	static void FTT(fixture_teardown_impl__##fixture_name)(FTT(fixture_data__##fixture_name) *ftt)
+
+/*
+ *
+ *   ASSERTIONS
+ *
+ */
 
 # define FT_TRUE(condition)\
 	do {\
@@ -143,7 +181,7 @@ void	FTT(test_register)(const char *name, const char *file, void (*test)());
 # define FTT_STR_IMPL(x) #x
 # define FTT_STR(x) FTT_STR_IMPL(x)
 
-# ifdef linux_
+# ifdef linux
 #  define __FTT_INTERNAL_GET_TEMPFILE(name) open("/dev/shm" name, O_CREAT | O_RDWR | O_TRUNC, S_IRWXU)
 #  define __FTT_INTERNAL_CLEAN_TEMPFILE(name) unlink("/dev/shm" name)
 #  define __FT_OUTPUT_IMPL(statement1, statement2, file, line)\
@@ -458,6 +496,9 @@ int main(int argc, char **argv) {
 	}
 	return FTT(test_failed);
 }
+
+FTT(fixture_data__) *FTT(fixture_setup__)(void) { return (NULL); }
+void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt) {}
 
 FTT(test_t)	*FTT(test_new)(const char *name, const char *file, void (*test)()) {
 	FTT(test_t) *ret = malloc(sizeof(FTT(test_t)));
