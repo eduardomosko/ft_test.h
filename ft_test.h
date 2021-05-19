@@ -60,6 +60,9 @@ typedef struct	FTT(options_s)
 	FTT(test_t)	*tests;
 }				FTT(options_t);
 
+typedef char FTT(vararr_t);
+typedef char FTT(fixture_data__);
+
 extern int FTT(test_failed);
 
 extern FTT(test_t) *FTT(tests);
@@ -68,7 +71,6 @@ extern FTT(test_t) *FTT(current_test);
 extern FTT(options_t) FTT(options);
 
 void	FTT(test_register)(const char *name, const char *file, void (*test)());
-typedef char FTT(fixture_data__);
 FTT(fixture_data__) *FTT(fixture_setup__)(void);
 void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
 
@@ -116,40 +118,63 @@ void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
  *
  */
 
+# define ___FTT_INTERNAL__LOG_RESULT(success, extra, params...)\
+	do {\
+		printf("\e[1;29m[%s]:\e[0m\n\t" extra, FTT(current_test)->name, ##params);\
+		printf("Result: %s\e[0m\n", (success)? "\e[1;29mOK" : "\e[1;29mKO"  );\
+	} while (0)
+
+# define ___FTT_INTERNAL__TEST_FAIL()\
+	do {\
+			FTT(test_failed) = 1;\
+			if (!FTT(options).run_all) return;\
+	} while (0)
+
 # define FT_TRUE(condition)\
 	do {\
 		if (!(condition)) {\
-			printf("Error on test %s: (%s) should be TRUE\n", FTT(current_test)->name, #condition);\
-			FTT(test_failed) = 1;\
-			if (!FTT(options).run_all) return;\
+			___FTT_INTERNAL__LOG_RESULT(0, "%s should be \e[1;29mTRUE\e[0m", #condition);\
+			___FTT_INTERNAL__TEST_FAIL();\
+		} else {\
+			___FTT_INTERNAL__LOG_RESULT(1, "%s should be \e[1;29mTRUE\e[0m", #condition);\
 		}\
-	} while (0);
-
+	} while (0)
 
 # define FT_FALSE(condition)\
 	do {\
 		if ((condition)) {\
-			printf("Error on test %s: (%s) should be FALSE\n", FTT(current_test)->name, #condition);\
-			FTT(test_failed) = 1;\
-			if (!FTT(options).run_all) return;\
+			___FTT_INTERNAL__LOG_RESULT(0, "%s should be \e[1;29mFALSE\e[0m", #condition);\
+			___FTT_INTERNAL__TEST_FAIL();\
+		} else {\
+			___FTT_INTERNAL__LOG_RESULT(1, "%s should be \e[1;29mFALSE\e[0m", #condition);\
 		}\
-	} while (0);
+	} while (0)
+
+
+		//FTT(vararr_t) va;\
+		//FTT(vararr_t) vb;\
+		//FTT(vararr_init)(&va);\
+		//FTT(vararr_init)(&vb);\
+
+# define ___FTT_INTERNAL__GET_PRINT(statement, vararr)
 
 # define ___FTT_INTERNAL_RUN_CHECK(type_name, a, check, b, oposite_check, ...)\
 	do {\
-		if (FTT(comp_##type_name)((a), (b), ##__VA_ARGS__) oposite_check 0) {\
+		FTT(vararr_t) va;\
+		FTT(vararr_t) vb;\
+		FTT(type_name##_t) t = { __VA_ARGS__ };\
+		if (FTT(comp_and_read_##type_name)((a), (b), &va, &vb, &t) oposite_check 0) {\
 			printf("[%s]: KO: expected %s " #check " %s, but ", FTT(current_test)->name, #a, #b);\
-			FTT(print_##type_name)((a), ##__VA_ARGS__);\
+			/*FTT(print_##type_name)((a), ##__VA_ARGS__);*/\
 			printf(" " #oposite_check " ");\
-			FTT(print_##type_name)((b), ##__VA_ARGS__);\
+			/*FTT(print_##type_name)((b), ##__VA_ARGS__);*/\
 			printf("\n");\
-			FTT(test_failed) = 1;\
-			if (!FTT(options).run_all) return;\
+			___FTT_INTERNAL__TEST_FAIL();\
 		} else if (FTT(options).verbose) {\
 			printf("[%s]: OK: expected %s " #check " %s, and ", FTT(current_test)->name, #a, #b);\
-			FTT(print_##type_name)((a), ##__VA_ARGS__);\
+			/*FTT(print_##type_name)((a), ##__VA_ARGS__);*/\
 			printf(" " #check " ");\
-			FTT(print_##type_name)((b), ##__VA_ARGS__);\
+			/*FTT(print_##type_name)((b), ##__VA_ARGS__);*/\
 			printf("\n");\
 		}\
 	} while (0);
@@ -264,18 +289,25 @@ void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
  */
 
 # define FT_TEST_REGISTER_TYPE_LAMBDA(type_name, type, printfn, compfn)\
-	void FTT(print_##type_name) printfn;\
+	void FTT(print_##type_name) printfn\
 	int FTT(comp_##type_name) compfn
 
-# define FT_TEST_REGISTER_TYPE_LMBD(type_name, type, printfn, compfn)\
-	FT_TEST_REGISTER_TYPE_LAMBDA(type_name, type,\
-			(type type_name) printfn,\
-			(type type_name##1, type type_name##2 ) compfn)
+# define FT_TEST_REGISTER_TYPE_LMBD(type_name, type, printfn, compfn, extra...)\
+	typedef struct FTT(type_name##_s) { extra; } FTT(type_name##_t);\
+	void FTT(print_##type_name)	(type type_name, FTT(type_name##_t) *ftt) printfn\
+	int FTT(comp_##type_name) (type type_name##1, type type_name##2, FTT(type_name##_t) *ftt) compfn\
+	int FTT(comp_and_read_##type_name) (type type_name##1, type type_name##2, FTT(vararr_t) *a, FTT(vararr_t) *b, FTT(type_name##_t) *ftt) {\
+		int res = FTT(comp_##type_name)(type_name##1, type_name##2, ftt);\
+		___FTT_INTERNAL__GET_PRINT(FTT(print_##type_name)(type_name##1), a);\
+		___FTT_INTERNAL__GET_PRINT(FTT(print_##type_name)(type_name##2), b);\
+		return (res);\
+	}
+	
 
-# define FT_TEST_REGISTER_TYPE_LMBD_(type_name, type, printfn, compfn)\
+# define FT_TEST_REGISTER_TYPE_LMBD_(type_name, type, printfn, compfn, extra...)\
 	FT_TEST_REGISTER_TYPE_LAMBDA(type_name, type,\
-			(type type_name##_) printfn,\
-			(type type_name##1, type type_name##2 ) compfn)
+			(type type_name##_, ##extra) printfn,\
+			(type type_name##1, type type_name##2, ##extra) compfn)
 
 # define FT_TEST_REGISTER_TYPE(type_name, type, printfn, compfn)\
 	FT_TEST_REGISTER_TYPE_LAMBDA(type_name, type,\
@@ -290,8 +322,8 @@ void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
 	void FTT(print_##type_name)()
 
 #define FT_TYPE_T(type_name, type, args...)\
-	int FTT(comp_##type_name)(type, type, ##args);\
-	void FTT(print_##type_name)(type, ##args)
+	int FTT(comp_##type_name)();\
+	void FTT(print_##type_name)()
 
 #define FT_TYPE_TE(type_name, args...)\
 	int FTT(comp_##type_name)(type_name, type_name, ##args);\
@@ -305,10 +337,10 @@ FT_TYPE(ulong);
 FT_TYPE(str);
 FT_TYPE(buffer);
 FT_TYPE(fd);
-FT_TYPE_TE(double);
+FT_TYPE(double);
 FT_TYPE_TE(float);
-FT_TYPE_T(aprx_float , float , float );
-FT_TYPE_T(aprx_double, double, double);
+//FT_TYPE_T(aprx_float , float , float );
+FT_TYPE_T(aprx_double, double);
 
 # ifdef FT_TEST_MAIN
 
@@ -537,9 +569,7 @@ FT_TEST_REGISTER_TYPE_LAMBDA(aprx_float , float ,
 		(float f , float _) { printf("%f", f); },
 		(float f1, float f2, float tol) { return f1 + tol < f2? -1 : f1 - tol > f2? 1 : 0; });
 
-FT_TEST_REGISTER_TYPE_LAMBDA(aprx_double, double,
-		(double d , double _) { printf("%f", d); },
-		(double d1, double d2, double tol) { return d1 + tol < d2? -1 : d1 - tol > d2 ? 1 : 0; });
+FT_TEST_REGISTER_TYPE_LMBD(aprx_double, double, { printf("%f", aprx_double); }, { return aprx_double1 + ftt->tol < aprx_double2? -1 : aprx_double1 - ftt->tol > aprx_double2 ? 1 : 0; }, double tol; int def);
 
 FT_TEST_REGISTER_TYPE_LMBD (str, char*, {
 			printf("\e[1;29m\"");
