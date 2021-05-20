@@ -10,6 +10,8 @@
 /*                                                                            */
 /* ************************************************************************** */
 
+
+
 #ifndef FT_TEST_H
 # define FT_TEST_H
 
@@ -17,6 +19,7 @@
 # include <stdlib.h>
 # include <string.h>
 # include <ctype.h>
+# include <stdint.h>
 # include <unistd.h>
 # include <fcntl.h>
 # include <sys/mman.h>
@@ -35,6 +38,10 @@
 #  define FT_TEST_MAXSECTIONS 32
 # endif
 
+# ifndef FT_TEST_CACHELINE
+#  define FT_TEST_CACHELINE 64
+# endif
+
 typedef struct	FTT(test_s)
 {
 	struct FTT(test_s) *next;
@@ -47,20 +54,37 @@ typedef struct	FTT(options_s)
 {
 	const char	*program_name;
 
-	// Logging options
+	/* Logging options */
 	int			help_only;
 	int			list_tests;
 
-	// Running options
+	/* Running options */
 	int			verbose;
 	int			exit_first;
 	int			run_all;
 
-	// Tests to run
+	/* Tests to run */
 	FTT(test_t)	*tests;
+
 }				FTT(options_t);
 
-typedef char FTT(vararr_t);
+
+/* 
+ * Mix of dinamic array and linked list which
+ * occupies exactly a cache line, minimizing realocation
+ * and cache misses
+ */
+# define FTT_LST_BUF_SIZE (FT_TEST_CACHELINE * sizeof(uint8_t) - sizeof(void*) - sizeof(uint8_t))
+typedef struct	FTT(lstarr_t)
+{
+	uint8_t	size;
+	uint8_t	buffer[FTT_LST_BUF_SIZE];
+
+	struct FTT(lstarr_t)	*next;
+}				FTT(lstarr_t);
+
+void	FTT(lstarr_read_fd)(int fd, FTT(lstarr_t) *a);
+
 typedef char FTT(fixture_data__);
 
 extern int FTT(test_failed);
@@ -81,7 +105,7 @@ void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
  */
 
 # define FT_SETUP(fixture_name, data_t)\
-	typedef struct FTT(fixture_data__##fixture_name) data_t FTT(fixture_data__##fixture_name);\
+	typedef struct FTT(fixture_data__##fixture_name) { data_t } FTT(fixture_data__##fixture_name);\
 	static void FTT(fixture_setup_impl__##fixture_name)(FTT(fixture_data__##fixture_name) *ftt);\
 	static void FTT(fixture_teardown__##fixture_name)(FTT(fixture_data__##fixture_name) *ftt);\
 	static struct FTT(fixture_data__##fixture_name) *FTT(fixture_setup__##fixture_name)(void) {\
@@ -118,83 +142,91 @@ void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
  *
  */
 
-# define ___FTT_INTERNAL__LOG_RESULT(success, extra, params...)\
+
+# define ___FTT_INTERNAL__GET_PRINT(statement, lstarr)\
 	do {\
-		printf("\e[1;29m[%s]:\e[0m\n\t" extra, FTT(current_test)->name, ##params);\
-		printf("Result: %s\e[0m\n", (success)? "\e[1;29mOK" : "\e[1;29mKO"  );\
+		int p[2];\
+		pipe(p);\
+		fflush(stdout);\
+		if (!fork()) {\
+			close(p[0]);\
+			dup2(p[1], fileno(stdout));\
+			statement;\
+			fflush(stdout);\
+			close(p[1]);\
+			exit(0);\
+		}\
+		close(p[1]);\
+		FTT(lstarr_read_fd)(p[0], lstarr);\
+		close(p[0]);\
 	} while (0)
 
 # define ___FTT_INTERNAL__TEST_FAIL()\
+	do { FTT(test_failed) = 1;\
+	if (!FTT(options).run_all) return; } while (0)\
+
+# define ___FTT_INTERNAL__LOG_CHECK(success, msg, aftermsg)\
 	do {\
-			FTT(test_failed) = 1;\
-			if (!FTT(options).run_all) return;\
+		printf("\e[1;29m[%s]:\e[0m %s  \t%15s",\
+			FTT(current_test)->name, msg, (success)?  "\e[0;32mOK" : "\e[0;31mKO");\
+		if (!success || FTT(options).verbose > 1) { aftermsg }\
+		printf("\e[0m\n");\
+	} while (0)
+
+# define ___FTT_INTERNAL_RUN_CHECK(check, msg, aftermsg, cleanup)\
+	do {\
+		int success = check;\
+		if (!success || FTT(options).verbose) {\
+			___FTT_INTERNAL__LOG_CHECK(success, msg, aftermsg);\
+		}\
+		do { cleanup } while(0);\
+		if (!success) ___FTT_INTERNAL__TEST_FAIL();\
+	} while (0);
+
+
+# define ___FTT_INTERNAL_RUN_COMP(type_name, a, check, b, oposite_check, opts)\
+	do {\
+		FTT(lstarr_t) *va = FTT(lstarr_create)();\
+		FTT(lstarr_t) *vb = FTT(lstarr_create)();\
+		FTT(type_name##_t) t = { opts };\
+		___FTT_INTERNAL_RUN_CHECK(\
+			FTT(comp_and_read_##type_name)((a), (b), va, vb, &t) check 0,\
+			#a" \e[1;29m"#check"\e[0m "#b,\
+			{\
+				printf(": ");\
+				FTT(lstarr_print)(va);\
+				printf(" %s ", success? #check : #oposite_check);\
+				FTT(lstarr_print)(vb);\
+			},\
+			{\
+				FTT(lstarr_destroy)(va);\
+				FTT(lstarr_destroy)(vb);\
+			})\
 	} while (0)
 
 # define FT_TRUE(condition)\
-	do {\
-		if (!(condition)) {\
-			___FTT_INTERNAL__LOG_RESULT(0, "%s should be \e[1;29mTRUE\e[0m", #condition);\
-			___FTT_INTERNAL__TEST_FAIL();\
-		} else {\
-			___FTT_INTERNAL__LOG_RESULT(1, "%s should be \e[1;29mTRUE\e[0m", #condition);\
-		}\
-	} while (0)
+	___FTT_INTERNAL_RUN_CHECK((condition), #condition " \e[1;29mis\e[0m TRUE",,)
 
 # define FT_FALSE(condition)\
-	do {\
-		if ((condition)) {\
-			___FTT_INTERNAL__LOG_RESULT(0, "%s should be \e[1;29mFALSE\e[0m", #condition);\
-			___FTT_INTERNAL__TEST_FAIL();\
-		} else {\
-			___FTT_INTERNAL__LOG_RESULT(1, "%s should be \e[1;29mFALSE\e[0m", #condition);\
-		}\
-	} while (0)
+	___FTT_INTERNAL_RUN_CHECK(!(condition), #condition " \e[1;29mis\e[0m FALSE",,)
 
 
-		//FTT(vararr_t) va;\
-		//FTT(vararr_t) vb;\
-		//FTT(vararr_init)(&va);\
-		//FTT(vararr_init)(&vb);\
-
-# define ___FTT_INTERNAL__GET_PRINT(statement, vararr)
-
-# define ___FTT_INTERNAL_RUN_CHECK(type_name, a, check, b, oposite_check, ...)\
-	do {\
-		FTT(vararr_t) va;\
-		FTT(vararr_t) vb;\
-		FTT(type_name##_t) t = { __VA_ARGS__ };\
-		if (FTT(comp_and_read_##type_name)((a), (b), &va, &vb, &t) oposite_check 0) {\
-			printf("[%s]: KO: expected %s " #check " %s, but ", FTT(current_test)->name, #a, #b);\
-			/*FTT(print_##type_name)((a), ##__VA_ARGS__);*/\
-			printf(" " #oposite_check " ");\
-			/*FTT(print_##type_name)((b), ##__VA_ARGS__);*/\
-			printf("\n");\
-			___FTT_INTERNAL__TEST_FAIL();\
-		} else if (FTT(options).verbose) {\
-			printf("[%s]: OK: expected %s " #check " %s, and ", FTT(current_test)->name, #a, #b);\
-			/*FTT(print_##type_name)((a), ##__VA_ARGS__);*/\
-			printf(" " #check " ");\
-			/*FTT(print_##type_name)((b), ##__VA_ARGS__);*/\
-			printf("\n");\
-		}\
-	} while (0);
-
-# define FT_EQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_CHECK(type_name, a, ==, b, !=, ##__VA_ARGS__)
+# define FT_EQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, ==, b, !=, ##__VA_ARGS__)
 # define FT_EQUALS(...) FT_EQ(__VA_ARGS__)
 
-# define FT_NEQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_CHECK(type_name, a, !=, b, ==, ##__VA_ARGS__)
+# define FT_NEQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, !=, b, ==, ##__VA_ARGS__)
 # define FT_NOT_EQUALS(...) FT_NEQ(__VA_ARGS__)
 
-# define FT_LT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_CHECK(type_name, a, <, b, >=, ##__VA_ARGS__)
+# define FT_LT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, <, b, >=, ##__VA_ARGS__)
 # define FT_LESS_THAN(...) FT_LT(__VA_ARGS__)
 
-# define FT_LE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_CHECK(type_name, a, <=, b, >, ##__VA_ARGS__)
+# define FT_LE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, <=, b, >, ##__VA_ARGS__)
 # define FT_LESS_EQUAL(...) FT_LE(__VA_ARGS__)
 
-# define FT_GT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_CHECK(type_name, a, >, b, <=, ##__VA_ARGS__)
+# define FT_GT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, >, b, <=, ##__VA_ARGS__)
 # define FT_GREATER_THAN(...) FT_GT(__VA_ARGS__)
 
-# define FT_GE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_CHECK(type_name, a, >=, b, <, ##__VA_ARGS__)
+# define FT_GE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, >=, b, <, ##__VA_ARGS__)
 # define FT_GREATER_EQUAL(...) FT_GT(__VA_ARGS__)
 
 /*
@@ -296,10 +328,10 @@ void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
 	typedef struct FTT(type_name##_s) { extra; } FTT(type_name##_t);\
 	void FTT(print_##type_name)	(type type_name, FTT(type_name##_t) *ftt) printfn\
 	int FTT(comp_##type_name) (type type_name##1, type type_name##2, FTT(type_name##_t) *ftt) compfn\
-	int FTT(comp_and_read_##type_name) (type type_name##1, type type_name##2, FTT(vararr_t) *a, FTT(vararr_t) *b, FTT(type_name##_t) *ftt) {\
+	int FTT(comp_and_read_##type_name) (type type_name##1, type type_name##2, FTT(lstarr_t) *a, FTT(lstarr_t) *b, FTT(type_name##_t) *ftt) {\
 		int res = FTT(comp_##type_name)(type_name##1, type_name##2, ftt);\
-		___FTT_INTERNAL__GET_PRINT(FTT(print_##type_name)(type_name##1), a);\
-		___FTT_INTERNAL__GET_PRINT(FTT(print_##type_name)(type_name##2), b);\
+		___FTT_INTERNAL__GET_PRINT(FTT(print_##type_name)(type_name##1, ftt), a);\
+		___FTT_INTERNAL__GET_PRINT(FTT(print_##type_name)(type_name##2, ftt), b);\
 		return (res);\
 	}
 	
@@ -339,7 +371,7 @@ FT_TYPE(buffer);
 FT_TYPE(fd);
 FT_TYPE(double);
 FT_TYPE_TE(float);
-//FT_TYPE_T(aprx_float , float , float );
+/* FT_TYPE_T(aprx_float , float , float ); */
 FT_TYPE_T(aprx_double, double);
 
 # ifdef FT_TEST_MAIN
@@ -356,7 +388,7 @@ void FTT(argparser)(int argc, char **argv)
 {
 	FTT(options).program_name = *argv;
 
-	// Check every argument
+	/* Check every argument */
 	int i;
 	for (i = 1; i < argc; ++i)
 	{
@@ -619,6 +651,71 @@ FT_TEST_REGISTER_TYPE_LMBD(fd, int,
 			return (0);
 		});
 
-# endif
+/*
+ *
+ * lstarr_t
+ *
+ */
 
-#endif
+FTT(lstarr_t)	*FTT(lstarr_create)()
+{
+	FTT(lstarr_t) *ret;
+
+	ret = malloc(sizeof(*ret));
+	memset(ret, 0, sizeof(*ret));
+
+	return (ret);
+}
+
+FTT(lstarr_t)	*FTT(lstarr_append)(FTT(lstarr_t) *a)
+{
+	FTT(lstarr_t) *new;
+
+	/* TODO log error if a is NULL */
+
+	new = FTT(lstarr_create)();
+	a->next = new;
+
+	return (new);
+}
+
+void	FTT(lstarr_destroy)(FTT(lstarr_t) *arr)
+{
+	FTT(lstarr_t) *next;
+
+	while (arr != NULL)
+	{
+		next = arr->next;
+		free(arr);
+		arr = next;
+	}
+}
+
+void	FTT(lstarr_read_fd)(int fd, FTT(lstarr_t) *a)
+{
+	ssize_t	read_bytes;
+	uint8_t	to_read;
+	char	*buffer;
+
+	read_bytes = 0;
+	to_read = FTT_LST_BUF_SIZE - a->size;
+
+	do {
+		a->size += read_bytes;
+
+		if (to_read == 0)
+			a = FTT(lstarr_append)(a);
+
+		to_read = FTT_LST_BUF_SIZE - a->size;
+		buffer = a->buffer + a->size;
+	} while ((read_bytes = read(fd, buffer, to_read)) > 0);
+}
+
+void FTT(lstarr_print)(FTT(lstarr_t) *a)
+{
+	for (; a != NULL; a = a->next)
+		FTT(print_escaped_buffer)(a->buffer, a->size);
+}
+
+# endif /* FT_TEST_MAIN */
+#endif /* FT_TEST_H */
