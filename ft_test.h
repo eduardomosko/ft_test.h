@@ -91,6 +91,7 @@ extern FTT(test_t) *FTT(tests);
 extern FTT(test_t) *FTT(current_test);
 
 extern FTT(options_t) FTT(options);
+extern int FTT(must_put_nl);
 
 void	FTT(test_register)(const char *name, const char *file, void (*test)());
 FTT(fixture_data__) *FTT(fixture_setup__)(void);
@@ -100,7 +101,8 @@ FTT(lstarr_t)	*FTT(lstarr_create)();
 FTT(lstarr_t)	*FTT(lstarr_append)(FTT(lstarr_t) *a);
 void	FTT(lstarr_destroy)(FTT(lstarr_t) *arr);
 void	FTT(lstarr_read_fd)(int fd, FTT(lstarr_t) *a);
-void FTT(lstarr_print)(FTT(lstarr_t) *a);
+void	FTT(lstarr_print)(FTT(lstarr_t) *a);
+int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 
 /*
  *
@@ -127,7 +129,15 @@ void FTT(lstarr_print)(FTT(lstarr_t) *a);
 	}\
 	void FTT(test_runner__##test_name)(void) {\
 		void *data = FTT(fixture_setup__##fixture_name)();\
+		int has_failed = FTT(test_failed);\
+		FTT(test_failed) = 0;\
 		FTT(test_case__##test_name)(data);\
+		if (FTT(options).verbose == 0 && !FTT(test_failed)){\
+			printf("\e[0;32m.\e[0m");\
+			fflush(stdout);\
+			FTT(must_put_nl) = 1;\
+		}\
+ 		FTT(test_failed) = has_failed || FTT(test_failed);\
 		FTT(fixture_teardown__##fixture_name)(data);\
 	}\
 	void FTT(test_case__##test_name)(FTT(fixture_data__##fixture_name) *ftt)
@@ -155,7 +165,7 @@ void FTT(lstarr_print)(FTT(lstarr_t) *a);
 		if (!fork()) {\
 			close(p[0]);\
 			dup2(p[1], fileno(stdout));\
-			statement;\
+			do { statement; } while(0);\
 			fflush(stdout);\
 			close(p[1]);\
 			exit(0);\
@@ -171,10 +181,13 @@ void FTT(lstarr_print)(FTT(lstarr_t) *a);
 
 # define ___FTT_INTERNAL__LOG_CHECK(success, msg, aftermsg)\
 	do {\
+		if (FTT(must_put_nl))\
+			printf("\n");\
 		printf("\e[1;29m[%s]:\e[0m %s  \t%15s",\
 			FTT(current_test)->name, msg, (success)?  "\e[0;32mOK" : "\e[0;31mKO");\
 		if (!success || FTT(options).verbose > 1) { aftermsg }\
 		printf("\e[0m\n");\
+		FTT(must_put_nl) = 0;\
 	} while (0)
 
 # define ___FTT_INTERNAL_RUN_CHECK(check, msg, aftermsg, cleanup)\
@@ -244,50 +257,23 @@ void FTT(lstarr_print)(FTT(lstarr_t) *a);
 
 # define __FT_OUTPUT_IMPL(statement1, statement2, file, line)\
 	do {\
-		int failed = 0;\
-		int p1[2];\
-		int p2[2];\
-		int buffer1[FT_OUTPUT_MAXSIZE] = {0};\
-		int buffer2[FT_OUTPUT_MAXSIZE] = {0};\
-		ssize_t read1 = 0;\
-		ssize_t read2 = 0;\
-		pipe(p1);\
-		pipe(p2);\
-		fflush(stdout);\
-		if (!fork()) {\
-			dup2(p1[1], fileno(stdout));\
-			statement1;\
-			fflush(stdout);\
-			close(p1[1]);\
-			exit(0);\
-		} else if (!fork()) {\
-			dup2(p2[1], fileno(stdout));\
-			statement2;\
-			fflush(stdout);\
-			close(p2[1]);\
-			exit(0);\
-		}\
-		read1 = read(p1[0], buffer1, FT_OUTPUT_MAXSIZE);\
-		close(p1[0]);\
-		read2 = read(p2[0], buffer2, FT_OUTPUT_MAXSIZE);\
-		close(p2[0]);\
-		if (read1 != read2 || FTT(comp_buffer)(buffer1, buffer2, read1) != 0) {\
-			printf("[%s]: KO: expected output of [ %s ] == output [ %s ], but ", FTT(current_test)->name, #statement1, #statement2);\
-			FTT(print_buffer)(buffer1, read1);\
-			printf(" != ");\
-			FTT(print_buffer)(buffer2, read2);\
-			printf("\n");\
-			FTT(test_failed) = 1;\
-			failed = 1;\
-		} else if (FTT(options).verbose) {\
-			printf("[%s]: OK: expected output of [ %s ] == output [ %s ], and ", FTT(current_test)->name, #statement1, #statement2);\
-			FTT(print_buffer)(buffer1, read1);\
-			printf(" == ");\
-			FTT(print_buffer)(buffer2, read2);\
-			printf("\n");\
-		}\
-		if (failed && !FTT(options).run_all) return;\
-	} while(0)
+		FTT(lstarr_t) *a = FTT(lstarr_create)();\
+		FTT(lstarr_t) *b = FTT(lstarr_create)();\
+		___FTT_INTERNAL__GET_PRINT(statement1, a);\
+		___FTT_INTERNAL__GET_PRINT(statement2, b);\
+		___FTT_INTERNAL_RUN_CHECK(FTT(lstarr_comp)(a, b) == 0,\
+			"\e[1;29mFT_OUTPUT(\e[0m"#statement1"\e[1;29m, \e[0m"#statement2"\e[1;29m)\e[0m", {\
+				printf(": {");\
+				FTT(lstarr_print_escaped)(a);\
+				printf(" == ");\
+				FTT(lstarr_print_escaped)(b);\
+				printf("}");\
+			}, {\
+				FTT(lstarr_destroy)(a);\
+				FTT(lstarr_destroy)(b);\
+			});\
+	} while (0);
+
 
 
 # define FT_OUTPUT(statement, expected)\
@@ -299,6 +285,7 @@ void FTT(lstarr_print)(FTT(lstarr_t) *a);
 		int p[2];\
 		pipe(p);\
 		if (fork()) {\
+			close(p[1]);\
 			int backup = dup(fileno(stdin));\
 			dup2(p[0], fileno(stdin));\
 			reader;\
@@ -308,6 +295,7 @@ void FTT(lstarr_print)(FTT(lstarr_t) *a);
 			dup2(backup, fileno(stdin));\
 			close(backup);\
 		} else {\
+			close(p[0]);\
 			int backup = dup(fileno(stdout));\
 			dup2(p[1], fileno(stdout));\
 			printer;\
@@ -382,6 +370,7 @@ FTT(test_t) *FTT(tests) = 0;
 FTT(test_t) *FTT(current_test) = 0;
 FTT(test_t) **FTT(register_handle) = &FTT(tests);
 FTT(options_t) FTT(options) = {0};
+int FTT(must_put_nl) = 0;
 
 FTT(test_t)	*FTT(test_copy)(FTT(test_t) *t);
 
@@ -528,8 +517,8 @@ int main(int argc, char **argv) {
 				break;
 		}
 
-		if (!FTT(test_failed))
-			printf("OK\n");
+		if (FTT(must_put_nl))
+			printf("\n");
 	}
 	return FTT(test_failed);
 }
@@ -565,7 +554,8 @@ void FTT(print_escaped_buffer)(char *buffer, size_t size)
 			printf("%c", *buffer);
 		else
 		{
-			printf("\e[1;29m");
+			/* TODO make previous color bold and restore afterwards */
+			/* printf("\e[1;29m"); */
 			switch (*buffer)
 			{
 				case '\a': printf("\\a"); break;
@@ -582,7 +572,38 @@ void FTT(print_escaped_buffer)(char *buffer, size_t size)
 				case '\e': printf("\\e"); break;
 				default: printf("\\%03o", *(unsigned char*)buffer); break;
 			}
-			printf("\e[0m");
+			/* printf("\e[0m"); */
+		}
+		++buffer;
+	}
+}
+
+void FTT(print_escaped_buffer_nocol)(char *buffer, size_t size)
+{
+	size_t i;
+	for (i = 0; i < size; ++i) {
+		if (isprint(*buffer))
+			printf("%c", *buffer);
+		else
+		{
+			//printf("\e[1;29m");
+			switch (*buffer)
+			{
+				case '\a': printf("\\a"); break;
+				case '\b': printf("\\b"); break;
+				case '\f': printf("\\f"); break;
+				case '\n': printf("\\n"); break;
+				case '\r': printf("\\r"); break;
+				case '\t': printf("\\t"); break;
+				case '\v': printf("\\v"); break;
+				case '\\': printf("\\\\"); break;
+				case '\'': printf("\\'"); break;
+				case '\"': printf("\\\""); break;
+				case '\?': printf("\\?"); break;
+				case '\e': printf("\\e"); break;
+				default: printf("\\%03o", *(unsigned char*)buffer); break;
+			}
+			//printf("\e[0m");
 		}
 		++buffer;
 	}
@@ -609,9 +630,9 @@ FT_TEST_REGISTER_TYPE_LMBD(aprx_double, double,
 	double tol;);
 
 FT_TEST_REGISTER_TYPE_LMBD (str, char*, {
-			printf("\e[1;29m\"");
+			printf("\"");
 			FTT(print_escaped_buffer)(str, strlen(str));
-			printf("\"\e[0m");
+			printf("\"");
 		}, { return strcmp(str1, str2); });
 
 
@@ -722,6 +743,27 @@ void FTT(lstarr_print)(FTT(lstarr_t) *a)
 	fflush(stdout);
 	for (; a != NULL; a = a->next)
 		write(fileno(stdout), (char*)a->buffer, a->size);
+}
+
+void FTT(lstarr_print_escaped)(FTT(lstarr_t) *a)
+{
+	for (; a != NULL; a = a->next)
+		FTT(print_escaped_buffer)((char*)a->buffer, a->size);
+}
+
+int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b)
+{
+	int res;
+
+	res = 0;
+	for (; a != NULL && b != NULL; a = a->next, b = b->next)
+	{
+		res = (a->size != b->size);
+		if (res) break;
+		res = memcmp(a->buffer, b->buffer, a->size);
+		if (res) break;
+	}
+	return (res);
 }
 
 # endif /* FT_TEST_MAIN */
