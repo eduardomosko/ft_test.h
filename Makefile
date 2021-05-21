@@ -1,11 +1,11 @@
 .PHONY: test
 
-test: test.clang test.gcc
-	./test.clang -vva
-	./test.gcc -vva
+test: test.clang.out test.gcc.out
+	./test.clang.out -vva
+	./test.gcc.out -vva
 
-test.clang: ft_test.h tests/*.c
-	@clang -I. tests/*.c -o test.clang
+test.clang.out: ft_test.h tests/*.c
+	@clang -I. tests/*.c -Wall -Werror -Wextra -o $@
 
-test.gcc: ft_test.h tests/*.c
-	@gcc -I. tests/*.c -o test.gcc
+test.gcc.out: ft_test.h tests/*.c
+	@gcc -I. tests/*.c -Wall -Werror -Wextra -o $@

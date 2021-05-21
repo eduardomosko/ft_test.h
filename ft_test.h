@@ -22,6 +22,10 @@
 # include <fcntl.h>
 # include <sys/mman.h>
 
+# ifndef FT_ALLOW_WARNINGS
+#  pragma GCC diagnostic ignored "-Wunused-parameter"
+# endif
+
 # ifndef FT_TEST_DEBUG
 #  define FTT(x) __________ftt_##x
 # else
