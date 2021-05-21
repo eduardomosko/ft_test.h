@@ -7,6 +7,13 @@ FT_TEST(output) {
 	FT_OUTPUT(printf("bb\n"), puts("bb"));
 }
 
+FT_TEST(more_output)
+{
+  FT_OUTPUT(printf("orange"), printf("orange"));
+  FT_OUTPUT(puts("apple"), puts("apple"));
+  FT_OUTPUT(puts("banana"), printf("banana\n"));
+}
+
 FT_TEST(input) {
 	int val = 0;
 	int val2 = 0;

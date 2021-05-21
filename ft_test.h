@@ -258,7 +258,7 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 			"\e[1;29mFT_OUTPUT(\e[0m"#statement1"\e[1;29m, \e[0m"#statement2"\e[1;29m)\e[0m", {\
 				printf(": {");\
 				FTT(lstarr_print_escaped)(a);\
-				printf(" == ");\
+				printf("} %s {", success? "==" : "!=");\
 				FTT(lstarr_print_escaped)(b);\
 				printf("}");\
 			}, {\
