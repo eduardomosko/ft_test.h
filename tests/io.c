@@ -4,9 +4,7 @@
 FT_TEST(output) {
 
 	FT_OUTPUT(printf("aa\n"), puts("aa"));
-
 	FT_OUTPUT(printf("bb\n"), puts("bb"));
-
 }
 
 FT_TEST(input) {
@@ -23,14 +21,18 @@ FT_TEST(input) {
 	FT_INPUT(puts("Another line, it is printed by puts"), ch = getchar());
 	FT_EQ(int, 'A', ch);
 
+	char *line = 0;
+	size_t size;
+	FT_INPUT(printf("aaaaaaaaaaaaaaaaaaaaaa"
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), getline(&line, &size, stdin));
+
 	FT_INPUT(puts("10 345"), scanf("%i %i", &val, &val2));
 	FT_EQ(int, val, 10);
+
 	FT_EQ(int, val2, 345);
 
-	char *line;
-	size_t size;
-	FT_INPUT(printf("This is my line printed by printf"), getline(&line, &size, stdin));
 	FT_EQ(str, "This is my line printed by printf", line);
+	free(line);
 }
 
 FT_TEST(floating_point) {
@@ -41,13 +43,14 @@ FT_TEST(floating_point) {
 	FT_LT(double, 0.1, 0.2);
 
 	FT_NEQ(float , 1.f, 1.0000001f);
+	FT_EQ(float , 1.f, 1.0000001f, .tol = 0.0000001f);
+
 	FT_EQ (float , 1.f, 1.00000001f);
 
 	FT_NEQ(double, 1.0, 1.00000001);
 	FT_NEQ(double, 1.0, 1.000000000000001);
 	FT_EQ (double, 1.0, 1.0000000000000001);
 
-	FT_EQ(aprx_float , 1.f, 1.0000001f, 0.0000001f);
-	FT_EQ(aprx_double, 1.0, 1.000000000000001, 0.000000000000001);
+	FT_EQ(double, 1.0, 1.000000000000001, .tol = 0.000000000000001);
 }
 

@@ -28,14 +28,6 @@
 #  define FTT(x) ftt_##x
 # endif
 
-# ifndef FT_OUTPUT_MAXSIZE
-#  define FT_OUTPUT_MAXSIZE 512
-# endif
-
-# ifndef FT_TEST_MAXSECTIONS
-#  define FT_TEST_MAXSECTIONS 32
-# endif
-
 # ifndef FT_TEST_CACHELINE
 #  define FT_TEST_CACHELINE 64
 # endif
@@ -102,6 +94,7 @@ FTT(lstarr_t)	*FTT(lstarr_append)(FTT(lstarr_t) *a);
 void	FTT(lstarr_destroy)(FTT(lstarr_t) *arr);
 void	FTT(lstarr_read_fd)(int fd, FTT(lstarr_t) *a);
 void	FTT(lstarr_print)(FTT(lstarr_t) *a);
+void	FTT(lstarr_print_escaped)(FTT(lstarr_t) *a);
 int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 
 /*
@@ -290,7 +283,6 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 			dup2(p[0], fileno(stdin));\
 			reader;\
 			close(p[0]);\
-			fclose(stdin);\
 			freopen("/dev/null", "r", stdin);\
 			dup2(backup, fileno(stdin));\
 			close(backup);\
@@ -313,7 +305,7 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
  */
 
 # define ___FTT_INTERNAL_REGISTER_TYPE_LMBD(type_name, type_nameesc, type, printfn, compfn, extra...)\
-	typedef struct FTT(type_name##_s) { extra char *msg; } FTT(type_name##_t);\
+	typedef struct FTT(type_name##_s) { extra; } FTT(type_name##_t);\
 	void FTT(print_##type_name)	(type type_nameesc, FTT(type_name##_t) *ftt) printfn\
 	int FTT(comp_##type_name) (type type_name##1, type type_name##2, FTT(type_name##_t) *ftt) compfn\
 	int FTT(comp_and_read_##type_name) (type type_name##1, type type_name##2, FTT(lstarr_t) *a, FTT(lstarr_t) *b, FTT(type_name##_t) *ftt) {\
@@ -332,13 +324,13 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 
 
 # define FT_TYPE(type_name, args...)\
-	typedef struct FTT(type_name##_s) { args char *msg; } FTT(type_name##_t);\
+	typedef struct FTT(type_name##_s) { args; } FTT(type_name##_t);\
 	int FTT(comp_##type_name)();\
 	void FTT(print_##type_name)();\
 	int FTT(comp_and_read_##type_name)()\
 
 # define FT_TYPE_TE(type_name, type, args...)\
-	typedef struct FTT(type_name##_s) { args char *msg; } FTT(type_name##_t);\
+	typedef struct FTT(type_name##_s) { args; } FTT(type_name##_t);\
 	int FTT(comp_##type_name)(type, FTT(type_name##_t)*);\
 	void FTT(print_##type_name)(type, type, FTT(type_name##_t)*);\
 	int FTT(comp_and_read_##type_name)(type, type, FTT(lstarr_t)*, FTT(lstarr_t)*, FTT(type_name##_t)*)\
@@ -354,12 +346,10 @@ FT_TYPE(ptr);
 FT_TYPE(uint);
 FT_TYPE(ulong);
 FT_TYPE(str);
-FT_TYPE(buffer, size_t size;);
+FT_TYPE(buffer, size_t size);
 FT_TYPE(fd);
-FT_TYPE_T(double);
-FT_TYPE_T(float);
-FT_TYPE_TE(aprx_float, float, float tol;);
-FT_TYPE_TE(aprx_double, double, double tol;);
+FT_TYPE_T(double, double tol);
+FT_TYPE_T(float, float tol);
 
 # endif
 
@@ -616,18 +606,16 @@ FT_TEST_REGISTER_TYPE_LMBD (ptr , void*, { printf("%p" ,  ptr ); }, { return  ((
 FT_TEST_REGISTER_TYPE_LMBD (uint , unsigned  int, { printf( "%u", uint ); }, { return  uint1 -  uint2; });
 FT_TEST_REGISTER_TYPE_LMBD (ulong, unsigned long, { printf("%lu", ulong); }, { return ulong1 - ulong2; });
 
-FT_TEST_REGISTER_TYPE_LMBD_(float , float , { printf("%f",  float_); }, { return float1  <  float2? -1 :  float1 ==  float2? 0 : 1; });
-FT_TEST_REGISTER_TYPE_LMBD_(double, double, { printf("%f", double_); }, { return double1 < double2? -1 : double1 == double2? 0 : 1; });
 
-FT_TEST_REGISTER_TYPE_LMBD(aprx_float , float ,
-		 { printf("%f", aprx_float); },
-		 { return aprx_float1 + ftt->tol < aprx_float2? -1 : aprx_float1 - ftt->tol > aprx_float2? 1 : 0; },
-		 float tol;);
+FT_TEST_REGISTER_TYPE_LMBD_(float , float ,
+		 { printf("%f", float_); },
+		 { return (float1 + ftt->tol) < float2? -1 : (float1 - ftt->tol) > float2? 1 : 0; },
+		 float tol);
 
-FT_TEST_REGISTER_TYPE_LMBD(aprx_double, double,
-	{ printf("%f", aprx_double); },
-	{ return aprx_double1 + ftt->tol < aprx_double2? -1 : aprx_double1 - ftt->tol > aprx_double2 ? 1 : 0; },
-	double tol;);
+FT_TEST_REGISTER_TYPE_LMBD_(double, double,
+	{ printf("%f", double_); },
+	{ return (double1 + ftt->tol) < double2? -1 : (double1 - ftt->tol) > double2 ? 1 : 0; },
+	double tol);
 
 FT_TEST_REGISTER_TYPE_LMBD (str, char*, {
 			printf("\"");
@@ -700,6 +688,9 @@ FTT(lstarr_t)	*FTT(lstarr_append)(FTT(lstarr_t) *a)
 
 	/* TODO log error if a is NULL */
 
+	while (a->next != NULL)
+		a = a->next;
+
 	created = FTT(lstarr_create)();
 	a->next = created;
 
@@ -720,21 +711,23 @@ void	FTT(lstarr_destroy)(FTT(lstarr_t) *arr)
 
 void	FTT(lstarr_read_fd)(int fd, FTT(lstarr_t) *a)
 {
+	FTT(lstarr_t) *it;
 	ssize_t	read_bytes;
 	uint8_t	to_read;
 	uint8_t	*buffer;
 
 	read_bytes = 0;
-	to_read = FTT_LST_BUF_SIZE - a->size;
+	it = a;
 
 	do {
-		a->size += read_bytes;
+		it->size += read_bytes;
+		to_read = FTT_LST_BUF_SIZE - it->size;
 
 		if (to_read == 0)
-			a = FTT(lstarr_append)(a);
+			it = FTT(lstarr_append)(it);
 
-		to_read = FTT_LST_BUF_SIZE - a->size;
-		buffer = a->buffer + a->size;
+		to_read = FTT_LST_BUF_SIZE - it->size;
+		buffer = it->buffer + it->size;
 	} while ((read_bytes = read(fd, buffer, to_read)) > 0);
 }
 
