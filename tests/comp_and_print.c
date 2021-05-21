@@ -1,4 +1,4 @@
-#include "ft_test.h"
+#include <ft_test.h>
 
 
 FT_TEST(comp_print)

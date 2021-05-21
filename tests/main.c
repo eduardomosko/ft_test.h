@@ -11,7 +11,7 @@
 /* ************************************************************************** */
 
 #define FT_TEST_MAIN
-#include "../ft_test.h"
+#include <ft_test.h>
 
 FT_TEST(buffer) {
 	char *buf1 = "0123\200456782";

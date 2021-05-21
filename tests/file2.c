@@ -10,7 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "ft_test.h"
+#include <ft_test.h>
 
 FT_TEST(str) {
 	FT_EQ(str, "batata", "batata");
