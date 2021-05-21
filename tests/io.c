@@ -23,8 +23,7 @@ FT_TEST(input) {
 
 	char *line = 0;
 	size_t size;
-	FT_INPUT(printf("aaaaaaaaaaaaaaaaaaaaaa"
-			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), getline(&line, &size, stdin));
+	FT_INPUT(printf("This is my line printed by printf"), getline(&line, &size, stdin));
 
 	FT_INPUT(puts("10 345"), scanf("%i %i", &val, &val2));
 	FT_EQ(int, val, 10);
