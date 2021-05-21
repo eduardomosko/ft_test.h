@@ -3,7 +3,7 @@
 /*                                                        :::      ::::::::   */
 /*   file2.c                                            :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By : emendes- <emendes-@student.42sp.org.br>    +#+  +:+       +#+        */
+/*   By: emendes- <emendes-@student.42sp.org.br>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/05/13 22:37:06 by emendes-          #+#    #+#             */
 /*   Updated: 2021/05/13 23:04:06 by emendes-         ###   ########.fr       */
