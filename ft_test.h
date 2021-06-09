@@ -20,10 +20,12 @@
 # include <stdint.h>
 # include <unistd.h>
 # include <fcntl.h>
+# include <math.h>
 # include <sys/mman.h>
 
 # ifndef FT_ALLOW_WARNINGS
 #  pragma GCC diagnostic ignored "-Wunused-parameter"
+#  pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 # endif
 
 # ifndef FT_TEST_DEBUG
@@ -34,6 +36,10 @@
 
 # ifndef FT_TEST_CACHELINE
 #  define FT_TEST_CACHELINE 64
+# endif
+
+# ifndef FT_TEST_MAX_MSG
+#  define FT_TEST_MAX_MSG 255
 # endif
 
 typedef struct	FTT(test_s)
@@ -89,6 +95,8 @@ extern FTT(test_t) *FTT(current_test);
 extern FTT(options_t) FTT(options);
 extern int FTT(must_put_nl);
 
+extern char FTT(msg_buf)[];
+
 void	FTT(test_register)(const char *name, const char *file, void (*test)());
 FTT(fixture_data__) *FTT(fixture_setup__)(void);
 void FTT(fixture_teardown__)(FTT(fixture_data__) *ftt);
@@ -108,7 +116,7 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
  */
 
 # define FT_SETUP(fixture_name, data_t)\
-	typedef struct FTT(fixture_data__##fixture_name) { data_t } FTT(fixture_data__##fixture_name);\
+	typedef struct FTT(fixture_data__##fixture_name) { data_t; } FTT(fixture_data__##fixture_name);\
 	static void FTT(fixture_setup_impl__##fixture_name)(FTT(fixture_data__##fixture_name) *ftt);\
 	static void FTT(fixture_teardown__##fixture_name)(FTT(fixture_data__##fixture_name) *ftt);\
 	static struct FTT(fixture_data__##fixture_name) *FTT(fixture_setup__##fixture_name)(void) {\
@@ -176,36 +184,36 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 	do { FTT(test_failed) = 1;\
 	if (!FTT(options).run_all) return; } while (0)\
 
-# define ___FTT_INTERNAL__LOG_CHECK(success, msg, aftermsg)\
+# define ___FTT_INTERNAL__LOG_CHECK(success, msg, aftermsg, usermsg)\
 	do {\
-		if (FTT(must_put_nl))\
-			printf("\n");\
-		printf("\e[1;29m[%s]:\e[0m %s  \t%15s",\
-			FTT(current_test)->name, msg, (success)?  "\e[0;32mOK" : "\e[0;31mKO");\
+		if (FTT(must_put_nl)) printf("\n");\
+		printf("%s:%i \e[1;29m[%s]:\e[0m %s  %s",\
+			__FILE__, __LINE__, FTT(current_test)->name, msg, (success)?  "\e[1;32mOK" : "\e[1;31mKO\e[0;31m");\
 		if (!success || FTT(options).verbose > 1) { aftermsg }\
 		printf("\e[0m\n");\
+		if (usermsg && *usermsg && (!success || FTT(options).verbose > 1)) { printf("\t%s\n", usermsg); }\
 		FTT(must_put_nl) = 0;\
 	} while (0)
 
-# define ___FTT_INTERNAL_RUN_CHECK(check, msg, aftermsg, cleanup)\
+# define ___FTT_INTERNAL_RUN_CHECK(check, msg, aftermsg, cleanup, usermsg)\
 	do {\
 		int success = check;\
 		if (!success || FTT(options).verbose) {\
-			___FTT_INTERNAL__LOG_CHECK(success, msg, aftermsg);\
+			___FTT_INTERNAL__LOG_CHECK(success, msg, aftermsg, usermsg);\
 		}\
 		do { cleanup } while(0);\
 		if (!success) ___FTT_INTERNAL__TEST_FAIL();\
 	} while (0);
 
 
-# define ___FTT_INTERNAL_RUN_COMP(type_name, a, check, b, oposite_check, opts...)\
+# define ___FTT_INTERNAL_RUN_COMP(type_name, a, astr, check, b, bstr, oposite_check, opts...)\
 	do {\
 		FTT(lstarr_t) *va = FTT(lstarr_create)();\
 		FTT(lstarr_t) *vb = FTT(lstarr_create)();\
 		FTT(type_name##_t) t = { opts };\
 		___FTT_INTERNAL_RUN_CHECK(\
 			FTT(comp_and_read_##type_name)((a), (b), va, vb, &t) check 0,\
-			#a" \e[1;29m"#check"\e[0m "#b,\
+			astr " \e[1;29m" #check "\e[0m " bstr,\
 			{\
 				printf(": ");\
 				FTT(lstarr_print)(va);\
@@ -215,33 +223,48 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 			{\
 				FTT(lstarr_destroy)(va);\
 				FTT(lstarr_destroy)(vb);\
-			})\
+			}, t.msg)\
 	} while (0)
 
-# define FT_TRUE(condition)\
-	___FTT_INTERNAL_RUN_CHECK((condition), #condition " \e[1;29mis\e[0m TRUE",,)
+# define FT_TRUE(condition, opts...)\
+	do {\
+	struct { char *msg; } t = { opts };\
+	___FTT_INTERNAL_RUN_CHECK((condition), #condition " \e[1;29mis\e[0m TRUE",,, t.msg);\
+	} while (0);
 
-# define FT_FALSE(condition)\
-	___FTT_INTERNAL_RUN_CHECK(!(condition), #condition " \e[1;29mis\e[0m FALSE",,)
+# define FT_FALSE(condition, opts...)\
+	do {\
+	struct { char *msg; } t = { opts };\
+	___FTT_INTERNAL_RUN_CHECK(!(condition), #condition " \e[1;29mis\e[0m FALSE",,, t.msg)\
+	} while (0);
 
 
-# define FT_EQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, ==, b, !=, ##__VA_ARGS__)
+# define FT_EQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, ==, b, #b, !=, ##__VA_ARGS__)
 # define FT_EQUALS(...) FT_EQ(__VA_ARGS__)
 
-# define FT_NEQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, !=, b, ==, ##__VA_ARGS__)
+# define FT_NEQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, !=, b, #b, ==, ##__VA_ARGS__)
 # define FT_NOT_EQUALS(...) FT_NEQ(__VA_ARGS__)
 
-# define FT_LT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, <, b, >=, ##__VA_ARGS__)
+# define FT_LT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, <, b, #b, >=, ##__VA_ARGS__)
 # define FT_LESS_THAN(...) FT_LT(__VA_ARGS__)
 
-# define FT_LE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, <=, b, >, ##__VA_ARGS__)
+# define FT_LE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, <=, b, #b, >, ##__VA_ARGS__)
 # define FT_LESS_EQUAL(...) FT_LE(__VA_ARGS__)
 
-# define FT_GT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, >, b, <=, ##__VA_ARGS__)
+# define FT_GT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, >, b, #b, <=, ##__VA_ARGS__)
 # define FT_GREATER_THAN(...) FT_GT(__VA_ARGS__)
 
-# define FT_GE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, >=, b, <, ##__VA_ARGS__)
+# define FT_GE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, >=, b, #b, <, ##__VA_ARGS__)
 # define FT_GREATER_EQUAL(...) FT_GT(__VA_ARGS__)
+
+/*
+ *
+ * User messages
+ *
+ */
+
+# define FT_MSG(format, args...)\
+	.msg = (snprintf(FTT(msg_buf), FT_TEST_MAX_MSG, format, ##args), FTT(msg_buf))
 
 /*
  *
@@ -252,8 +275,9 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 # define FTT_STR_IMPL(x) #x
 # define FTT_STR(x) FTT_STR_IMPL(x)
 
-# define __FT_OUTPUT_IMPL(statement1, statement2, file, line)\
+# define __FT_OUTPUT_IMPL(statement1, statement2, file, line, opts...)\
 	do {\
+		struct { char *msg; } t = { opts };\
 		FTT(lstarr_t) *a = FTT(lstarr_create)();\
 		FTT(lstarr_t) *b = FTT(lstarr_create)();\
 		___FTT_INTERNAL__GET_PRINT(statement1, a);\
@@ -268,7 +292,7 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 			}, {\
 				FTT(lstarr_destroy)(a);\
 				FTT(lstarr_destroy)(b);\
-			});\
+			}, t.msg);\
 	} while (0);
 
 
@@ -309,7 +333,7 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
  */
 
 # define ___FTT_INTERNAL_REGISTER_TYPE_LMBD(type_name, type_nameesc, type, printfn, compfn, extra...)\
-	typedef struct FTT(type_name##_s) { extra; } FTT(type_name##_t);\
+	typedef struct FTT(type_name##_s) { extra; char *msg; } FTT(type_name##_t);\
 	void FTT(print_##type_name)	(type type_nameesc, FTT(type_name##_t) *ftt) printfn\
 	int FTT(comp_##type_name) (type type_name##1, type type_name##2, FTT(type_name##_t) *ftt) compfn\
 	int FTT(comp_and_read_##type_name) (type type_name##1, type type_name##2, FTT(lstarr_t) *a, FTT(lstarr_t) *b, FTT(type_name##_t) *ftt) {\
@@ -328,13 +352,13 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 
 
 # define FT_TYPE(type_name, args...)\
-	typedef struct FTT(type_name##_s) { args; } FTT(type_name##_t);\
+	typedef struct FTT(type_name##_s) { args; char *msg; } FTT(type_name##_t);\
 	int FTT(comp_##type_name)();\
 	void FTT(print_##type_name)();\
 	int FTT(comp_and_read_##type_name)()\
 
 # define FT_TYPE_TE(type_name, type, args...)\
-	typedef struct FTT(type_name##_s) { args; } FTT(type_name##_t);\
+	typedef struct FTT(type_name##_s) { args; char *msg; } FTT(type_name##_t);\
 	int FTT(comp_##type_name)(type, FTT(type_name##_t)*);\
 	void FTT(print_##type_name)(type, type, FTT(type_name##_t)*);\
 	int FTT(comp_and_read_##type_name)(type, type, FTT(lstarr_t)*, FTT(lstarr_t)*, FTT(type_name##_t)*)\
@@ -349,9 +373,13 @@ FT_TYPE(long);
 FT_TYPE(ptr);
 FT_TYPE(uint);
 FT_TYPE(ulong);
+FT_TYPE(size_t);
+FT_TYPE(ssize_t);
 FT_TYPE(str);
 FT_TYPE(buffer, size_t size);
 FT_TYPE(fd);
+FT_TYPE(cmp);
+FT_TYPE(bool);
 FT_TYPE_T(double, double tol);
 FT_TYPE_T(float, float tol);
 
@@ -365,6 +393,7 @@ FTT(test_t) *FTT(current_test) = 0;
 FTT(test_t) **FTT(register_handle) = &FTT(tests);
 FTT(options_t) FTT(options) = {0};
 int FTT(must_put_nl) = 0;
+char FTT(msg_buf)[FT_TEST_MAX_MSG + 1] = {};
 
 FTT(test_t)	*FTT(test_copy)(FTT(test_t) *t);
 
@@ -610,6 +639,11 @@ FT_TEST_REGISTER_TYPE_LMBD (ptr , void*, { printf("%p" ,  ptr ); }, { return  ((
 FT_TEST_REGISTER_TYPE_LMBD (uint , unsigned  int, { printf( "%u", uint ); }, { return  uint1 -  uint2; });
 FT_TEST_REGISTER_TYPE_LMBD (ulong, unsigned long, { printf("%lu", ulong); }, { return ulong1 - ulong2; });
 
+FT_TEST_REGISTER_TYPE_LMBD ( size_t, unsigned long, { printf("%zi",  size_t); }, { return  size_t1 -  size_t2; });
+FT_TEST_REGISTER_TYPE_LMBD (ssize_t, unsigned long, { printf("%zd", ssize_t); }, { return ssize_t1 - ssize_t2; });
+
+FT_TEST_REGISTER_TYPE_LMBD (cmp, int, { printf("%i", cmp); }, { return (cmp1 > 0 && cmp2 > 0)? 0 : (cmp1 < 0 && cmp2 < 0)? 0 : (cmp1 == 0 && cmp2 == 0)? 0 : 1; });
+FT_TEST_REGISTER_TYPE_LMBD (bool, int, { printf("%s", (bool)? "TRUE" : "FALSE"); }, { return !(((bool1) && (bool2)) || ((!bool1) && (!bool2))); });
 
 FT_TEST_REGISTER_TYPE_LMBD_(float , float ,
 		 { printf("%f", float_); },
