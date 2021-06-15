@@ -41,6 +41,25 @@ FT_TEST(input) {
 	free(line);
 }
 
+FT_TEST(output_binary)
+{
+	FT_OUTPUT(
+		write(1, "this contains a \0 :o", 20),
+		printf("this contains a %c :o", '\0')
+	);
+}
+
+FT_TEST(output_multiline)
+{
+	FT_OUTPUT(
+		printf("the ");
+		printf("str");
+		printf("ing"),
+
+		printf("the string");
+	);
+}
+
 FT_TEST(floating_point) {
 	FT_EQ(float, 0.1f, 0.1f);
 	FT_EQ(double, 0.1, 0.1);
