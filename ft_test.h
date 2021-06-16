@@ -38,6 +38,11 @@
 #  define FT_TEST_CACHELINE 64
 # endif
 
+# ifndef FT_TEST_CACHELINES
+#  define FT_TEST_CACHELINES 4
+# endif
+
+
 # ifndef FT_TEST_MAX_MSG
 #  define FT_TEST_MAX_MSG 255
 # endif
@@ -68,13 +73,25 @@ typedef struct	FTT(options_s)
 
 }				FTT(options_t);
 
+typedef enum	FTT(comparisons_e)
+{
+	FTT(EQ),
+	FTT(NEQ),
+	FTT(LT),
+	FTT(LE),
+	FTT(GT),
+	FTT(GE),
+}				FTT(comparisons_t);
+
 
 /* 
- * Mix of dinamic array and linked list which
- * occupies exactly a cache line, minimizing realocation
- * and cache misses
+ * Mix of dinamic array and linked list which occupies exactly
+ * FT_TEST_CACHELINES cache lines, minimizing realocation and cache misses
  */
-# define FTT_LST_BUF_SIZE (FT_TEST_CACHELINE * sizeof(uint8_t) - sizeof(void*) - sizeof(uint8_t))
+# define FTT_LST_BUF_SIZE (FT_TEST_CACHELINE * FT_TEST_CACHELINES - sizeof(void*) - sizeof(uint8_t))
+# if FT_TEST_CACHELINE * FT_TEST_CACHELINES > 256
+#  error "FT_TEST_CACHELINE or FT_TEST_CACHELINES is too big for uint8_t addressing"
+# endif
 typedef struct	FTT(lstarr_t)
 {
 	uint8_t	size;
@@ -184,11 +201,13 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 	do { FTT(test_failed) = 1;\
 	if (!FTT(options).run_all) return; } while (0)\
 
-# define ___FTT_INTERNAL__LOG_CHECK(success, msg, aftermsg, usermsg)\
+# define ___FTT_INTERNAL__LOG_CHECK(success, msg, aftermsg, usermsg, file, line)\
 	do {\
 		if (FTT(must_put_nl)) printf("\n");\
-		printf("%s:%i \e[1;29m[%s]:\e[0m %s  %s",\
-			__FILE__, __LINE__, FTT(current_test)->name, msg, (success)?  "\e[1;32mOK" : "\e[1;31mKO\e[0;31m");\
+		printf("%s:%s \e[1;29m[%s]:\e[0m ",\
+			file, line, FTT(current_test)->name);\
+		msg;\
+		printf("  %s", (success)?  "\e[1;32mOK" : "\e[1;31mKO\e[0;31m");\
 		if (!success || FTT(options).verbose > 1) { aftermsg }\
 		printf("\e[0m\n");\
 		if (usermsg && *usermsg && (!success || FTT(options).verbose > 1)) { printf("\t%s\n", usermsg); }\
@@ -199,62 +218,48 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 	do {\
 		int success = check;\
 		if (!success || FTT(options).verbose) {\
-			___FTT_INTERNAL__LOG_CHECK(success, msg, aftermsg, usermsg);\
+			___FTT_INTERNAL__LOG_CHECK(success, msg, aftermsg, usermsg, __FILE__, FTT_STR(__LINE__));\
 		}\
 		do { cleanup } while(0);\
 		if (!success) ___FTT_INTERNAL__TEST_FAIL();\
 	} while (0);
 
 
-# define ___FTT_INTERNAL_RUN_COMP(type_name, a, astr, check, b, bstr, oposite_check, opts...)\
+# define ___FTT_INTERNAL_RUN_COMP(type_name, a, astr, check, b, bstr, opts...)\
 	do {\
-		FTT(lstarr_t) *va = FTT(lstarr_create)();\
-		FTT(lstarr_t) *vb = FTT(lstarr_create)();\
 		FTT(type_name##_t) t = { opts };\
-		___FTT_INTERNAL_RUN_CHECK(\
-			FTT(comp_and_read_##type_name)((a), (b), va, vb, &t) check 0,\
-			astr " \e[1;29m" #check "\e[0m " bstr,\
-			{\
-				printf(": ");\
-				FTT(lstarr_print)(va);\
-				printf(" %s ", success? #check : #oposite_check);\
-				FTT(lstarr_print)(vb);\
-			},\
-			{\
-				FTT(lstarr_destroy)(va);\
-				FTT(lstarr_destroy)(vb);\
-			}, (t.FTT(msg)))\
+		if (!FTT(run_check_##type_name)(a, b, &t, check, astr, bstr, __FILE__, FTT_STR(__LINE__))) ___FTT_INTERNAL__TEST_FAIL();\
 	} while (0)
 
 # define FT_TRUE(condition, opts...)\
 	do {\
 	struct { char *FTT(msg); } t = { opts };\
-	___FTT_INTERNAL_RUN_CHECK((condition), #condition " \e[1;29mis\e[0m TRUE",,, t.FTT(msg));\
+	___FTT_INTERNAL_RUN_CHECK((condition), printf("%s", #condition " \e[1;29mis\e[0m TRUE"),,, t.FTT(msg));\
 	} while (0);
 
 # define FT_FALSE(condition, opts...)\
 	do {\
 	struct { char *FTT(msg); } t = { opts };\
-	___FTT_INTERNAL_RUN_CHECK(!(condition), #condition " \e[1;29mis\e[0m FALSE",,, t.FTT(msg))\
+	___FTT_INTERNAL_RUN_CHECK(!(condition), printf("%s", #condition " \e[1;29mis\e[0m FALSE"),,, t.FTT(msg))\
 	} while (0);
 
 
-# define FT_EQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, ==, b, #b, !=, ##__VA_ARGS__)
+# define FT_EQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, FTT(EQ), b, #b, ##__VA_ARGS__)
 # define FT_EQUALS(...) FT_EQ(__VA_ARGS__)
 
-# define FT_NEQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, !=, b, #b, ==, ##__VA_ARGS__)
+# define FT_NEQ(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, FTT(NEQ), b, #b, ##__VA_ARGS__)
 # define FT_NOT_EQUALS(...) FT_NEQ(__VA_ARGS__)
 
-# define FT_LT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, <, b, #b, >=, ##__VA_ARGS__)
+# define FT_LT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, FTT(LT), b, #b, ##__VA_ARGS__)
 # define FT_LESS_THAN(...) FT_LT(__VA_ARGS__)
 
-# define FT_LE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, <=, b, #b, >, ##__VA_ARGS__)
+# define FT_LE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, FTT(LE), b, #b, ##__VA_ARGS__)
 # define FT_LESS_EQUAL(...) FT_LE(__VA_ARGS__)
 
-# define FT_GT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, >, b, #b, <=, ##__VA_ARGS__)
+# define FT_GT(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, FTT(GT), b, #b, ##__VA_ARGS__)
 # define FT_GREATER_THAN(...) FT_GT(__VA_ARGS__)
 
-# define FT_GE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, >=, b, #b, <, ##__VA_ARGS__)
+# define FT_GE(type_name, a, b, ...) ___FTT_INTERNAL_RUN_COMP(type_name, a, #a, FTT(GE), b, #b, ##__VA_ARGS__)
 # define FT_GREATER_EQUAL(...) FT_GT(__VA_ARGS__)
 
 /*
@@ -283,7 +288,7 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 		___FTT_INTERNAL__GET_PRINT(statement1, a);\
 		___FTT_INTERNAL__GET_PRINT(statement2, b);\
 		___FTT_INTERNAL_RUN_CHECK(FTT(lstarr_comp)(a, b) == 0,\
-			"\e[1;29mFT_OUTPUT(\e[0m"#statement1"\e[1;29m, \e[0m"#statement2"\e[1;29m)\e[0m", {\
+			printf("%s", "\e[1;29mFT_OUTPUT(\e[0m"#statement1"\e[1;29m, \e[0m"#statement2"\e[1;29m)\e[0m"), {\
 				printf(": {");\
 				FTT(lstarr_print_escaped)(a);\
 				printf("} %s {", success? "==" : "!=");\
@@ -298,7 +303,7 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 
 
 # define FT_OUTPUT(statement, expected)\
-	__FT_OUTPUT_IMPL(statement, expected, __FILE__, __LINE__)
+	__FT_OUTPUT_IMPL(statement, expected, __FILE__, FTT_STR(__LINE__))
 
 # define FT_INPUT(printer, reader)\
 	do {\
@@ -336,12 +341,40 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 	typedef struct FTT(type_name##_s) { extra; char *FTT(msg); } FTT(type_name##_t);\
 	void FTT(print_##type_name)	(type type_nameesc, FTT(type_name##_t) *ftt) printfn\
 	int FTT(comp_##type_name) (type type_name##1, type type_name##2, FTT(type_name##_t) *ftt) compfn\
-	int FTT(comp_and_read_##type_name) (type type_name##1, type type_name##2, FTT(lstarr_t) *a, FTT(lstarr_t) *b, FTT(type_name##_t) *ftt) {\
+	int FTT(run_check_##type_name) (type type_name##1, type type_name##2, FTT(type_name##_t) *ftt, FTT(comparisons_t) check, char *a, char *b, char *file, char *line) {\
 		int res = FTT(comp_##type_name)(type_name##1, type_name##2, ftt);\
-		___FTT_INTERNAL__GET_PRINT(FTT(print_##type_name)(type_name##1, ftt), a);\
-		___FTT_INTERNAL__GET_PRINT(FTT(print_##type_name)(type_name##2, ftt), b);\
-		return (res);\
+		int success = 0;\
+		char *cmp = 0;\
+		char *ocmp = 0;\
+		switch (check) {\
+			case FTT(EQ):\
+				success = res == 0; cmp = "=="; ocmp = "!="; break;\
+			case FTT(NEQ):\
+				success = res != 0; cmp = "!="; ocmp = "=="; break;\
+			case FTT(LT):\
+				success = res < 0; cmp = "<"; ocmp = ">="; break;\
+			case FTT(LE):\
+				success = res <= 0; cmp = "<="; ocmp = ">"; break;\
+			case FTT(GT):\
+				success = res > 0; cmp = ">"; ocmp = "<="; break;\
+			case FTT(GE):\
+				success = res >= 0; cmp = ">="; ocmp = "<"; break;\
+		}\
+		if (!success || FTT(options).verbose) {\
+			___FTT_INTERNAL__LOG_CHECK(\
+				success,\
+				printf("%s \e[1;29m%s\e[0m %s", a, cmp, b),\
+				{\
+					printf(": ");\
+					FTT(print_##type_name)(type_name##1, ftt);\
+					printf(" %s ", success? cmp : ocmp);\
+					FTT(print_##type_name)(type_name##2, ftt);\
+				}, (ftt->FTT(msg)), file, line\
+			);\
+		}\
+		return (success);\
 	}
+
 
 # define FT_TEST_REGISTER_TYPE(type_name, type, printfn, compfn, extra...)\
 	___FTT_INTERNAL_REGISTER_TYPE(type_name, type_name, type, printfn, compfn, ##extra)
@@ -359,7 +392,7 @@ int		FTT(lstarr_comp)(FTT(lstarr_t) *a, FTT(lstarr_t) *b);
 	typedef struct FTT(type_name##_s) { args; char *FTT(msg); } FTT(type_name##_t);\
 	int FTT(comp_##type_name)(type, FTT(type_name##_t)*);\
 	void FTT(print_##type_name)(type, type, FTT(type_name##_t)*);\
-	int FTT(comp_and_read_##type_name)(type, type, FTT(lstarr_t)*, FTT(lstarr_t)*, FTT(type_name##_t)*)\
+	int FTT(run_check_##type_name) (type, type, FTT(type_name##_t)*, FTT(comparisons_t), char*, char*, char*, char*);\
 
 # define FT_TYPE_SAME(type_name, args...)\
 	FT_TYPE(type_name, type_name, ##args)
