@@ -130,12 +130,30 @@ you need.
 #include "ft_test.h"
 
 
+FT_TEST(less_than_int)
+{
+	FT_LESS_THAN(int,  0, 10);  // OK
+	FT_LESS_THAN(int,  9, 10);  // OK
+	FT_LESS_THAN(int, 10, 10);  // KO
+	FT_LESS_THAN(int, 11, 10);  // KO
+
+	FT_LT(int,  0, 10);         // OK, same as before
+}
+
+FT_TEST(less_than_str)
+{
+	FT_LESS_THAN(str, "eai meu bon", "eai meu bom");  // OK
+	FT_LESS_THAN(str,  "0", "1");  // OK
+	FT_LESS_THAN(str, "10", "1");  // KO, comparison is lexographic
+
+	FT_LT(str, "a", "b");  // OK, same logic as before
+}
 ```
 
 
-# FT_OUTPUT, FT_INPUT
+## FT_OUTPUT, FT_INPUT
 
-These are probably super cool. They let you redirect stdin and stdout
+These are probably the coolest. They let you redirect stdin and stdout
 temporarly for your tests (without writing to disk!).
 
 FT_OUTPUT checks that the output of a statement (may be multi-line) is the same
@@ -174,16 +192,19 @@ FT_TEST(output_multiline)
 }
 ```
 
-FT_INPUT redirects the output of the first to the input of the
-second. It does not perform any checks. Examples:
+FT_INPUT redirects the output of the first to the input of the second. It does
+not perform any checks. Examples:
 
 ```c
 #include "ft_test.h"
 
 FT_TEST(input)
 {
-	int v1;
-	int v2;
+	int v1 = 0;
+	int v2 = 0;
+
+	FT_EQ(int, v1, 0);  // OK
+	FT_EQ(int, v2, 0);  // OK
 	
 	// Redirects what is printed to stdin
 	FT_INPUT(printf("102, 307"), scanf("%i, %i", &v1, &v2));
@@ -256,10 +277,23 @@ and type-checking inside the function bodys.
 For now, these are the included types available for testing, I hope it's
 obvious what each of them represent.
 
-- int, uint, long, ulong
-- float, double, aprx_float, aprx_double
-- str, buffer, ptr
-- fd
+Beware that each of them have their own comparing/printing logic.
+
+- int		->	int
+- long		->	long
+- uint		->	unsigned int
+- ulong		->	unsigned long
+- size_t	->	size_t
+- ssize_t	->	ssize_t
+- float		->	float, accepts a optional tolerance for equality
+- double	->	double, accepts a optional tolerance for equality
+- str		->	null terminated char\*, compared lexographically
+- buffer	->	void\*, compared lexographically as unsigned char. Accepts a
+  `size_t` with how many bytes must be compared.
+- ptr		->	void\*, compared by value
+- fd		->	int, should represent a posix seekable file descriptor,
+  compared lexographically.
+- cmp		->	int, represents the result of a `strcmp` style comparison.
 
 
 # License
