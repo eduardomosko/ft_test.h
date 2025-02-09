@@ -139,25 +139,25 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 	}                                                                                             \
 	static void FTT(fixture_setup_impl__##fixture_name)(FTT(fixture_data__##fixture_name) * ftt)
 
-#define FT_TEST(test_name, fixture_name...)                                      \
-	void							  FTT(test_case__##test_name)();             \
-	void							  FTT(test_runner__##test_name)();           \
-	void __attribute__((constructor)) FTT(construct_##test_name)() {             \
-		FTT(test_register)(#test_name, __FILE__, FTT(test_runner__##test_name)); \
-	}                                                                            \
-	void FTT(test_runner__##test_name)(void) {                                   \
-		void* data = FTT(fixture_setup__##fixture_name)();                       \
-		int	  has_failed = FTT(test_failed);                                     \
-		FTT(test_failed) = 0;                                                    \
-		FTT(test_case__##test_name)(data);                                       \
-		if (FTT(options).verbose == 0 && !FTT(test_failed)) {                    \
-			printf("\e[0;32m.\e[0m");                                            \
-			fflush(stdout);                                                      \
-			FTT(must_put_nl) = 1;                                                \
-		}                                                                        \
-		FTT(test_failed) = has_failed || FTT(test_failed);                       \
-		FTT(fixture_teardown__##fixture_name)(data);                             \
-	}                                                                            \
+#define FT_TEST(test_name, fixture_name...)                                                            \
+	void							  FTT(test_case__##test_name)(FTT(fixture_data__##fixture_name)*); \
+	void							  FTT(test_runner__##test_name)();                                 \
+	void __attribute__((constructor)) FTT(construct_##test_name)() {                                   \
+		FTT(test_register)(#test_name, __FILE__, FTT(test_runner__##test_name));                       \
+	}                                                                                                  \
+	void FTT(test_runner__##test_name)(void) {                                                         \
+		void* data = FTT(fixture_setup__##fixture_name)();                                             \
+		int	  has_failed = FTT(test_failed);                                                           \
+		FTT(test_failed) = 0;                                                                          \
+		FTT(test_case__##test_name)(data);                                                             \
+		if (FTT(options).verbose == 0 && !FTT(test_failed)) {                                          \
+			printf("\e[0;32m.\e[0m");                                                                  \
+			fflush(stdout);                                                                            \
+			FTT(must_put_nl) = 1;                                                                      \
+		}                                                                                              \
+		FTT(test_failed) = has_failed || FTT(test_failed);                                             \
+		FTT(fixture_teardown__##fixture_name)(data);                                                   \
+	}                                                                                                  \
 	void FTT(test_case__##test_name)(FTT(fixture_data__##fixture_name) * ftt)
 
 #define FT_TEARDOWN(fixture_name)                                                                    \
@@ -313,7 +313,7 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 				FTT(lstarr_destroy)(b);                                                                         \
 			},                                                                                                  \
 			t.FTT(msg));                                                                                        \
-	} while (0);
+	} while (0)
 
 #define FT_OUTPUT(statement, expected) __FT_OUTPUT_IMPL(statement, expected, __FILE__, FTT_STR(__LINE__))
 

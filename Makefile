@@ -1,9 +1,13 @@
-.PHONY: test
+.PHONY: test clang gcc
 
-FLAGS = -vva
+FLAGS =
 
-test: test.clang.out test.gcc.out
+test: clang gcc
+
+clang: test.clang.out
 	./test.clang.out $(FLAGS)
+
+gcc: test.gcc.out
 	./test.gcc.out $(FLAGS)
 
 test.clang.out: ft_test.h tests/*.c

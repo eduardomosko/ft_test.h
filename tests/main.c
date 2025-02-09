@@ -11,11 +11,11 @@
 /* ************************************************************************** */
 
 #define FT_TEST_MAIN
-#include <ft_test.h>
+#include "../ft_test.h"
 
 FT_TEST(buffer) {
-	char *buf1 = "0123\200456782";
-	char *buf2 = "0123\200456789";
+	char* buf1 = "0123\200456782";
+	char* buf2 = "0123\200456789";
 
 	FT_EQ(buffer, buf1, buf2, .size = 9);
 	FT_EQ(buffer, buf1, buf2, .size = 10);
