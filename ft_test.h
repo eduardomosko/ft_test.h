@@ -328,7 +328,7 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 #define FT_TEST_REGISTER_TYPE_LMBD_(type_name, type, printfn, compfn, extra...) \
 	___FTT_INTERNAL_REGISTER_TYPE_LMBD(type_name, type_name##_, type, printfn, compfn, ##extra)
 
-#define FT_TYPE(type_name, type, args...)                         \
+#define FT_TYPE_T(type_name, type, args...)                       \
 	typedef struct FTT(type_name##_s) {                           \
 		args;                                                     \
 	} FTT(type_name##_t);                                         \
@@ -336,28 +336,20 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 	void FTT(print_##type_name)(type, type, FTT(type_name##_t)*); \
 	int	 FTT(comp_and_read_##type_name)(type, type, FTT(lstarr_t)*, FTT(lstarr_t)*, FTT(type_name##_t)*)
 
-#define FT_TYPE_TE(type_name, type, args...)                      \
-	typedef struct FTT(type_name##_s) {                           \
-		args;                                                     \
-	} FTT(type_name##_t);                                         \
-	int	 FTT(comp_##type_name)(type, FTT(type_name##_t)*);        \
-	void FTT(print_##type_name)(type, type, FTT(type_name##_t)*); \
-	int	 FTT(comp_and_read_##type_name)(type, type, FTT(lstarr_t)*, FTT(lstarr_t)*, FTT(type_name##_t)*)
-
-#define FT_TYPE_T(type_name, args...) FT_TYPE_TE(type_name, type_name, ##args)
+#define FT_TYPE(type_name, args...) FT_TYPE_T(type_name, type_name, ##args)
 
 #ifndef FT_TEST_MAIN
 
-FT_TYPE(int, int);
-FT_TYPE(long, long);
-FT_TYPE(ptr, void*);
-FT_TYPE(uint, unsigned int);
-FT_TYPE(ulong, unsigned long);
-FT_TYPE(str, char*);
-FT_TYPE(buffer, void*, size_t size);
-FT_TYPE(fd, int);
-FT_TYPE_T(double, double tol);
-FT_TYPE_T(float, float tol);
+FT_TYPE(int);
+FT_TYPE(long);
+FT_TYPE(double, double tol);
+FT_TYPE(float, float tol);
+FT_TYPE_T(ptr, void*);
+FT_TYPE_T(uint, unsigned int);
+FT_TYPE_T(ulong, unsigned long);
+FT_TYPE_T(str, char*);
+FT_TYPE_T(buffer, void*, size_t size);
+FT_TYPE_T(fd, int);
 
 #endif
 
