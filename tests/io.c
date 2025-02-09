@@ -78,4 +78,3 @@ FT_TEST(floating_point) {
 
 	FT_EQ(double, 1.0, 1.000000000000001, .tol = 0.000000000000001);
 }
-

@@ -16,6 +16,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <math.h>
+#include <poll.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -182,9 +183,7 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 		if (!fork()) {                                \
 			close(p[0]);                              \
 			dup2(p[1], fileno(stdout));               \
-			do {                                      \
-				statement;                            \
-			} while (0);                              \
+			{ statement; }                            \
 			fflush(stdout);                           \
 			close(p[1]);                              \
 			exit(0);                                  \
@@ -213,7 +212,7 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 		}                                                                         \
 		printf("\e[0m\n");                                                        \
 		if (usermsg && *usermsg && (!success || FTT(options).verbose > 1)) {      \
-			printf("\t%s\n", usermsg);                                            \
+			printf("\tFT_MSG: %s\n", usermsg);                                    \
 		}                                                                         \
 		FTT(must_put_nl) = 0;                                                     \
 	} while (0)
@@ -317,30 +316,53 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 
 #define FT_OUTPUT(statement, expected) __FT_OUTPUT_IMPL(statement, expected, __FILE__, FTT_STR(__LINE__))
 
-#define FT_INPUT(printer, reader)             \
-	do {                                      \
-		fflush(stdout);                       \
-		int p[2];                             \
-		pipe(p);                              \
-		if (fork()) {                         \
-			close(p[1]);                      \
-			int backup = dup(fileno(stdin));  \
-			dup2(p[0], fileno(stdin));        \
-			reader;                           \
-			close(p[0]);                      \
-			freopen("/dev/null", "r", stdin); \
-			dup2(backup, fileno(stdin));      \
-			close(backup);                    \
-		} else {                              \
-			close(p[0]);                      \
-			int backup = dup(fileno(stdout)); \
-			dup2(p[1], fileno(stdout));       \
-			printer;                          \
-			fflush(stdout);                   \
-			dup2(backup, fileno(stdout));     \
-			close(p[1]);                      \
-			exit(0);                          \
-		}                                     \
+#define FT_INPUT(printer, reader)                                     \
+	do {                                                              \
+		int tries = 3;                                                \
+		do {                                                          \
+			fflush(stdout);                                           \
+			int p[2];                                                 \
+			pipe(p);                                                  \
+			switch (fork()) {                                         \
+				case -1: {                                            \
+					tries--;                                          \
+				}; break;                                             \
+				case 0: {                                             \
+					close(p[0]);                                      \
+					int backup = dup(fileno(stdout));                 \
+					dup2(p[1], fileno(stdout));                       \
+					{                                                 \
+						int p, backup, tries; /* protect vars */      \
+						(void)(backup), (void)(p);                    \
+						(void)(tries);                                \
+						{ printer; };                                 \
+					}                                                 \
+					fflush(stdout);                                   \
+					dup2(backup, fileno(stdout));                     \
+					close(p[1]);                                      \
+					exit(0);                                          \
+				}; break;                                             \
+				default: {                                            \
+					/* wait for write */                              \
+					close(p[1]);                                      \
+					struct pollfd f = {.fd = p[0], .events = POLLIN}; \
+					poll(&f, 1, 200);                                  \
+					int backup = dup(fileno(stdin));                  \
+					dup2(p[0], fileno(stdin));                        \
+					{                                                 \
+						int f, p, backup, tries; /* protect vars */   \
+						(void)(backup), (void)(p);                    \
+						(void)(f), (void)(tries);                     \
+						{ reader; };                                  \
+					}                                                 \
+					close(p[0]);                                      \
+					freopen("/dev/null", "r", stdin);                 \
+					dup2(backup, fileno(stdin));                      \
+					close(backup);                                    \
+					tries = 0;                                        \
+				}; break;                                             \
+			}                                                         \
+		} while (tries);                                              \
 	} while (0)
 
 /*
