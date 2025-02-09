@@ -116,25 +116,25 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 	}                                                                                             \
 	static void FTT(fixture_setup_impl__##fixture_name)(FTT(fixture_data__##fixture_name) * ftt)
 
-#define FT_TEST(test_name, fixture_name...)                                      \
-	void							  FTT(test_case__##test_name)();             \
-	void							  FTT(test_runner__##test_name)();           \
-	void __attribute__((constructor)) FTT(construct_##test_name)() {             \
-		FTT(test_register)(#test_name, __FILE__, FTT(test_runner__##test_name)); \
-	}                                                                            \
-	void FTT(test_runner__##test_name)(void) {                                   \
-		void* data = FTT(fixture_setup__##fixture_name)();                       \
-		int	  has_failed = FTT(test_failed);                                     \
-		FTT(test_failed) = 0;                                                    \
-		FTT(test_case__##test_name)(data);                                       \
-		if (FTT(options).verbose == 0 && !FTT(test_failed)) {                    \
-			printf("\e[0;32m.\e[0m");                                            \
-			fflush(stdout);                                                      \
-			FTT(must_put_nl) = 1;                                                \
-		}                                                                        \
-		FTT(test_failed) = has_failed || FTT(test_failed);                       \
-		FTT(fixture_teardown__##fixture_name)(data);                             \
-	}                                                                            \
+#define FT_TEST(test_name, fixture_name...)                                                                 \
+	void							  FTT(test_case__##test_name)(FTT(fixture_data__##fixture_name) * ftt); \
+	void							  FTT(test_runner__##test_name)();                                      \
+	void __attribute__((constructor)) FTT(construct_##test_name)() {                                        \
+		FTT(test_register)(#test_name, __FILE__, FTT(test_runner__##test_name));                            \
+	}                                                                                                       \
+	void FTT(test_runner__##test_name)(void) {                                                              \
+		void* data = FTT(fixture_setup__##fixture_name)();                                                  \
+		int	  has_failed = FTT(test_failed);                                                                \
+		FTT(test_failed) = 0;                                                                               \
+		FTT(test_case__##test_name)(data);                                                                  \
+		if (FTT(options).verbose == 0 && !FTT(test_failed)) {                                               \
+			printf("\e[0;32m.\e[0m");                                                                       \
+			fflush(stdout);                                                                                 \
+			FTT(must_put_nl) = 1;                                                                           \
+		}                                                                                                   \
+		FTT(test_failed) = has_failed || FTT(test_failed);                                                  \
+		FTT(fixture_teardown__##fixture_name)(data);                                                        \
+	}                                                                                                       \
 	void FTT(test_case__##test_name)(FTT(fixture_data__##fixture_name) * ftt)
 
 #define FT_TEARDOWN(fixture_name)                                                                    \
@@ -328,13 +328,13 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 #define FT_TEST_REGISTER_TYPE_LMBD_(type_name, type, printfn, compfn, extra...) \
 	___FTT_INTERNAL_REGISTER_TYPE_LMBD(type_name, type_name##_, type, printfn, compfn, ##extra)
 
-#define FT_TYPE(type_name, args...)     \
-	typedef struct FTT(type_name##_s) { \
-		args;                           \
-	} FTT(type_name##_t);               \
-	int	 FTT(comp_##type_name)();       \
-	void FTT(print_##type_name)();      \
-	int	 FTT(comp_and_read_##type_name)()
+#define FT_TYPE(type_name, type, args...)                         \
+	typedef struct FTT(type_name##_s) {                           \
+		args;                                                     \
+	} FTT(type_name##_t);                                         \
+	int	 FTT(comp_##type_name)(type, type, FTT(type_name##_t)*);  \
+	void FTT(print_##type_name)(type, type, FTT(type_name##_t)*); \
+	int	 FTT(comp_and_read_##type_name)(type, type, FTT(lstarr_t)*, FTT(lstarr_t)*, FTT(type_name##_t)*)
 
 #define FT_TYPE_TE(type_name, type, args...)                      \
 	typedef struct FTT(type_name##_s) {                           \
@@ -348,14 +348,14 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 
 #ifndef FT_TEST_MAIN
 
-FT_TYPE(int);
-FT_TYPE(long);
-FT_TYPE(ptr);
-FT_TYPE(uint);
-FT_TYPE(ulong);
-FT_TYPE(str);
-FT_TYPE(buffer, size_t size);
-FT_TYPE(fd);
+FT_TYPE(int, int);
+FT_TYPE(long, long);
+FT_TYPE(ptr, void*);
+FT_TYPE(uint, unsigned int);
+FT_TYPE(ulong, unsigned long);
+FT_TYPE(str, char*);
+FT_TYPE(buffer, void*, size_t size);
+FT_TYPE(fd, int);
 FT_TYPE_T(double, double tol);
 FT_TYPE_T(float, float tol);
 
