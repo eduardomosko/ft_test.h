@@ -25,8 +25,10 @@
 #include <unistd.h>
 
 #ifndef FT_ALLOW_WARNINGS
-#	pragma GCC diagnostic ignored "-Wunused-parameter"
-#	pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#	ifdef __GNUC__
+#		pragma GCC diagnostic ignored "-Wunused-parameter"
+#		pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#	endif
 #endif
 
 #ifndef FT_TEST_DEBUG
@@ -146,7 +148,15 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 	void __attribute__((constructor)) FTT(construct_##test_name)() {                                   \
 		FTT(test_register)(#test_name, __FILE__, FTT(test_runner__##test_name));                       \
 	}                                                                                                  \
+	const struct {                                                                                     \
+		void (*constructor)(void);                                                                     \
+		char identifier[64];                                                                           \
+	} FTT(__construct_##test_name) = {                                                                 \
+		.constructor = &FTT(construct_##test_name),                                                    \
+		.identifier = "_cst_ft_test_" FTT_STR(test_name) "\0",                                         \
+	};                                                                                                 \
 	void FTT(test_runner__##test_name)(void) {                                                         \
+		(void)(FTT(__construct_##test_name));                                                          \
 		void* data = FTT(fixture_setup__##fixture_name)();                                             \
 		int	  has_failed = FTT(test_failed);                                                           \
 		FTT(test_failed) = 0;                                                                          \
@@ -183,7 +193,9 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 		if (!fork()) {                                \
 			close(p[0]);                              \
 			dup2(p[1], fileno(stdout));               \
-			{ statement; }                            \
+			{                                         \
+				statement;                            \
+			}                                         \
 			fflush(stdout);                           \
 			close(p[1]);                              \
 			exit(0);                                  \
@@ -335,7 +347,9 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 						int p, backup, tries; /* protect vars */      \
 						(void)(backup), (void)(p);                    \
 						(void)(tries);                                \
-						{ printer; };                                 \
+						{                                             \
+							printer;                                  \
+						};                                            \
 					}                                                 \
 					fflush(stdout);                                   \
 					dup2(backup, fileno(stdout));                     \
@@ -346,14 +360,16 @@ int	 FTT(lstarr_comp)(FTT(lstarr_t) * a, FTT(lstarr_t) * b);
 					/* wait for write */                              \
 					close(p[1]);                                      \
 					struct pollfd f = {.fd = p[0], .events = POLLIN}; \
-					poll(&f, 1, 200);                                  \
+					poll(&f, 1, 200);                                 \
 					int backup = dup(fileno(stdin));                  \
 					dup2(p[0], fileno(stdin));                        \
 					{                                                 \
 						int f, p, backup, tries; /* protect vars */   \
 						(void)(backup), (void)(p);                    \
 						(void)(f), (void)(tries);                     \
-						{ reader; };                                  \
+						{                                             \
+							reader;                                   \
+						};                                            \
 					}                                                 \
 					close(p[0]);                                      \
 					freopen("/dev/null", "r", stdin);                 \
@@ -487,8 +503,6 @@ char FTT(msg_buf)[FT_TEST_MAX_MSG + 1] = {};
 FTT(test_t) * FTT(test_copy)(FTT(test_t) * t);
 
 void FTT(argparser)(int argc, char** argv) {
-	FTT(options).program_name = *argv;
-
 	/* Check every argument */
 	int i;
 	for (i = 1; i < argc; ++i) {
@@ -584,26 +598,108 @@ void FTT(list_tests)() {
 	}
 }
 
+static char* FTT(read_file)(const char* path, size_t* len) {
+	size_t	cap = 1024;
+	char*	buffer = malloc(cap);
+	size_t	offset = 0;
+	ssize_t read_bytes = 0;
+	int		fd = open(FTT(options).program_name, O_RDONLY);
+
+	do {
+		offset += read_bytes;
+		if (offset == cap) {
+			cap *= 2;
+			buffer = realloc(buffer, cap);
+		}
+	} while ((read_bytes = read(fd, buffer + offset, cap - offset)) > 0);
+
+	close(fd);
+	if (len != 0) {
+		*len = offset;
+	}
+	return buffer;
+}
+
+void FTT(test_finder_sanity_check_fn)() {
+	printf("dear compiler, pls dont remove me");
+}
+
+const struct {
+	void (*constructor)(void);
+	char identifier[64];
+} FTT(test_finder_sanity_check) = {
+	.constructor = FTT(test_finder_sanity_check_fn),
+	.identifier = "_cst_ft_sanity_check",
+};
+
+static void FTT(fallback_find_tests)() {
+	// runs when unable to register the tests with constructors
+	size_t len = 0;
+	char*  data = FTT(read_file)(FTT(options).program_name, &len);
+
+	// sanity check
+	char* found = memmem(data, len, FTT(test_finder_sanity_check).identifier, strlen(FTT(test_finder_sanity_check).identifier));
+	void (*sanity_check_fn)(void) = *(((void**)found) - 1);
+
+	if (sanity_check_fn != FTT(test_finder_sanity_check).constructor) {
+		printf("ERROR: Unable to find tests. Your compiler is probably not supported\n");
+		exit(1);
+	}
+
+	const char* search = "_cst_ft_test_";
+	size_t		searchlen = strlen(search);
+	size_t		i = 0;
+	while (i < len) {
+		char* found = memmem(data + i, len - i, search, searchlen);
+		if (found == 0) {
+			break;
+		}
+		i = (found - data) + searchlen;	 // go to next
+
+		if (strlen(found) == searchlen) {
+			// this is the search string itself
+			continue;
+		}
+
+		void (*constructor)(void) = *(((void**)found) - 1);
+		constructor();	// register found test
+	}
+
+	free(data);
+}
+
 int main(int argc, char** argv) {
+	FTT(options).program_name = *argv;
+
+	if (FTT(tests) == 0) {
+		// fallback test search by opening the binary
+		FTT(fallback_find_tests)();
+	}
+
 	FTT(argparser)(argc, argv);
 
 	if (FTT(options).help_only) {
 		FTT(show_help)();
-	} else if (FTT(options).list_tests) {
+		return 0;
+	}
+
+	if (FTT(options).list_tests) {
 		FTT(list_tests)();
-	} else {
-		for (FTT(current_test) = FTT(options).tests; FTT(current_test) != 0; FTT(current_test) = FTT(current_test)->next) {
-			FTT(current_test)->run();
+		return 0;
+	}
 
-			if (FTT(options).exit_first && FTT(test_failed)) {
-				break;
-			}
-		}
+	for (FTT(current_test) = FTT(options).tests; FTT(current_test) != 0; FTT(current_test) = FTT(current_test)->next) {
+		FTT(current_test)->run();
 
-		if (FTT(must_put_nl)) {
-			printf("\n");
+		if (FTT(options).exit_first && FTT(test_failed)) {
+			break;
 		}
 	}
+
+	if (FTT(must_put_nl)) {
+		printf("\n");
+	}
+
 	return FTT(test_failed);
 }
 
