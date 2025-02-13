@@ -22,7 +22,7 @@ test.gcc.out: ft_test.h tests/*.c
 	@gcc -I. tests/*.c -Wall -Werror -Wextra -o $@
 
 test.tcc.out: ./tcc-compiler/tcc ft_test.h tests/*.c
-	@./tcc-compiler/tcc -I./tcc-compiler/include -L./tcc-compiler tests/*.c -Wall -Werror -Wextra -o $@
+	@./tcc-compiler/tcc -I./tcc-compiler/include -L./tcc-compiler tests/*.c -Wall -Werror -Wextra -DFT_ALLOW_WARNINGS -o $@
 
 
 ./tcc-compiler/tcc: ./tcc-compiler/configure
